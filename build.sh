@@ -174,6 +174,8 @@ then
      cd ./'Debug-build'
    else 
      cd ./'Release-build'
+     llvm-dis ../Test-Suite/test_cases_bc/fstbhc_tests/constructor1.cpp.bc -o -
+     ./bin/wpa -fstbhc ../Test-Suite/test_cases_bc/fstbhc_tests/constructor1.cpp.bc
    fi
   ctest --v
 fi
