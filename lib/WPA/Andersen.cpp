@@ -97,6 +97,12 @@ void AndersenBase::finalize()
 	if (PrintCGGraph)
 		consCG->print();
     PointerAnalysis::finalize();
+
+    for (auto pit = pag->begin(); pit != pag->end(); ++pit) {
+        NodeID p = pit->first;
+        const PointsTo &pts = getPts(p);
+        llvm::outs() << " COUNT: " << pts.count() << " ACTUAL: " << pts.Elements.size() << " BEST: " << (pts.count() + 128 - 1) / 128 << "\n";
+    }
 }
 
 
