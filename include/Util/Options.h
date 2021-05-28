@@ -31,6 +31,9 @@ public:
     /// Maximum number of field derivations for an object.
     static const llvm::cl::opt<unsigned> MaxFieldLimit;
 
+    /// Whether to perform versioning one object at a time or all at once.
+    static const llvm::cl::opt<bool> SerialVersioning;
+
     // ContextDDA.cpp
     static const llvm::cl::opt<unsigned long long> CxtBudget;
 

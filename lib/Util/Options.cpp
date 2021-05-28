@@ -24,6 +24,11 @@ namespace SVF
         llvm::cl::init(512),
         llvm::cl::desc("Maximum number of fields for field sensitive analysis"));
 
+    const llvm::cl::opt<bool> Options::SerialVersioning(
+        "serial-version",
+        llvm::cl::init(false),
+        llvm::cl::desc("Perform versioning of each object separately."));
+
 
     // ContextDDA.cpp
     const llvm::cl::opt<unsigned long long> Options::CxtBudget(
