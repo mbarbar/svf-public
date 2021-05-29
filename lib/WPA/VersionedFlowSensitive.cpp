@@ -150,6 +150,8 @@ void VersionedFlowSensitive::serialMeldLabel(void)
     double start = stat->getClk(true);
     // o -> (n -> indirect (o) outgoing neighbours of n).
     Map<NodeID, Map<NodeID, Set<NodeID>>> objAdjList;
+    // Worklists for versioning each object.
+    Map<NodeID, FIFOWorkList<NodeID>> worklists;
 
     // Pass over entire SVFG and give every possible version a value (empty) to ensure
     // that meldConsume and meldYield will never have new <key, value> pairs added..
@@ -172,7 +174,11 @@ void VersionedFlowSensitive::serialMeldLabel(void)
         {
             // Yields already set, consumes need to be set.
             const PointsTo &prePts = ander->getPts(store->getPAGDstNodeID());
-            for (const NodeID o : prePts) sMeldConsume[o];
+            for (const NodeID o : prePts)
+            {
+                sMeldConsume[o];
+                worklists[o].push(s);
+            }
         }
         else if (const LoadSVFGNode *load = SVFUtil::dyn_cast<LoadSVFGNode>(sn))
         {
@@ -182,10 +188,16 @@ void VersionedFlowSensitive::serialMeldLabel(void)
         }
         else if (const MRSVFGNode *mr = SVFUtil::dyn_cast<MRSVFGNode>(sn))
         {
+            const PointsTo &prePts = mr->getPointsTo();
+
             // Yields = consumes so just consumes need to be set.
             // Some consumes may be set if it is a delta node, though.
-            if (delta(s)) continue;
-            const PointsTo &prePts = mr->getPointsTo();
+            if (delta(s))
+            {
+                for (const NodeID o : prePts) worklists[o].push(s);
+                continue;
+            }
+
             for (const NodeID o : prePts) sMeldConsume[o];
         }
         else
