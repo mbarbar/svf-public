@@ -40,7 +40,8 @@ void VersionedFlowSensitive::initialize()
     vPtD = getVersionedPTDataTy();
 
     prelabel();
-    meldLabel();
+    if (Options::SerialVersioning) meldLabel();
+    else serialMeldLabel();
     mapMeldVersions();
 
     determineReliance();
@@ -100,46 +101,6 @@ void VersionedFlowSensitive::prelabel(void)
         }
     }
 
-    // Pass over entire SVFG and give every possible version a value (empty) to ensure
-    // that meldConsume and meldYield will never have new <key, value> pairs added..
-    // If each possible key has a value, we can use access the map in a read-only manner
-    // (the <key, value> mapping, that is; the values will still be modified) and thus not
-    // risk rehashing and thus iterator/reference invalidation.
-    // Only necessary if we're doing serial versioning.
-    if (Options::SerialVersioning)
-    {
-        // this loop can piggyback off of the loop above, but it's more readable
-        // this way. If performance becomes a problem, we could do that.
-        for (SVFG::iterator it = svfg->begin(); it != svfg->end(); ++it)
-        {
-            const NodeID s = it->first;
-            const SVFGNode *sn = it->second;
-
-            ObjToMeldVersionMap sMeldConsume = meldConsume[s];
-
-            if (const StoreSVFGNode *store = SVFUtil::dyn_cast<StoreSVFGNode>(sn))
-            {
-                // Yields already set, consumes need to be set.
-                const PointsTo &prePts = ander->getPts(store->getPAGDstNodeID());
-                for (const NodeID o : prePts) sMeldConsume[o];
-            }
-            else if (const LoadSVFGNode *load = SVFUtil::dyn_cast<LoadSVFGNode>(sn))
-            {
-                // Yields = consumes so just consumes need to be set.
-                const PointsTo &prePts = ander->getPts(load->getPAGSrcNodeID());
-                for (const NodeID o : prePts) sMeldConsume[o];
-            }
-            else if (const MRSVFGNode *mr = SVFUtil::dyn_cast<MRSVFGNode>(sn))
-            {
-                // Yields = consumes so just consumes need to be set.
-                // Some consumes may be set if it is a delta node, though.
-                if (delta(s)) continue;
-                const PointsTo &prePts = mr->getPointsTo();
-                for (const NodeID o : prePts) sMeldConsume[o];
-            }
-        }
-    }
-
     double end = stat->getClk(true);
     prelabelingTime = (end - start) / TIMEINTERVAL;
 }
@@ -182,6 +143,45 @@ void VersionedFlowSensitive::meldLabel(void) {
 
     double end = stat->getClk(true);
     meldLabelingTime = (end - start) / TIMEINTERVAL;
+}
+
+void VersionedFlowSensitive::serialMeldLabel(void)
+{
+    // Pass over entire SVFG and give every possible version a value (empty) to ensure
+    // that meldConsume and meldYield will never have new <key, value> pairs added..
+    // If each possible key has a value, we can use access the map in a read-only manner
+    // (the <key, value> mapping, that is; the values will still be modified) and thus not
+    // risk rehashing and thus iterator/reference invalidation.
+    // This loop can piggyback off of the loop in preLabel, but it's more readable
+    // this way. If performance becomes a problem, we could do that.
+    for (SVFG::iterator it = svfg->begin(); it != svfg->end(); ++it)
+    {
+        const NodeID s = it->first;
+        const SVFGNode *sn = it->second;
+
+        ObjToMeldVersionMap sMeldConsume = meldConsume[s];
+
+        if (const StoreSVFGNode *store = SVFUtil::dyn_cast<StoreSVFGNode>(sn))
+        {
+            // Yields already set, consumes need to be set.
+            const PointsTo &prePts = ander->getPts(store->getPAGDstNodeID());
+            for (const NodeID o : prePts) sMeldConsume[o];
+        }
+        else if (const LoadSVFGNode *load = SVFUtil::dyn_cast<LoadSVFGNode>(sn))
+        {
+            // Yields = consumes so just consumes need to be set.
+            const PointsTo &prePts = ander->getPts(load->getPAGSrcNodeID());
+            for (const NodeID o : prePts) sMeldConsume[o];
+        }
+        else if (const MRSVFGNode *mr = SVFUtil::dyn_cast<MRSVFGNode>(sn))
+        {
+            // Yields = consumes so just consumes need to be set.
+            // Some consumes may be set if it is a delta node, though.
+            if (delta(s)) continue;
+            const PointsTo &prePts = mr->getPointsTo();
+            for (const NodeID o : prePts) sMeldConsume[o];
+        }
+    }
 }
 
 bool VersionedFlowSensitive::meld(MeldVersion &mv1, MeldVersion &mv2)

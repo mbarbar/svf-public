@@ -113,6 +113,8 @@ private:
     void prelabel(void);
     /// Meld label the prelabeled SVFG.
     void meldLabel(void);
+    /// Meld label one object at a time.
+    void serialMeldLabel(void);
     /// Melds v2 into v1 (in place), returns whether a change occurred.
     bool meld(MeldVersion &mv1, MeldVersion &mv2);
 
