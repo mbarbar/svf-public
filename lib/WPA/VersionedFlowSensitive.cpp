@@ -147,6 +147,7 @@ void VersionedFlowSensitive::meldLabel(void) {
 
 void VersionedFlowSensitive::serialMeldLabel(void)
 {
+    double start = stat->getClk(true);
     // o -> (n -> indirect (o) outgoing neighbours of n).
     Map<NodeID, Map<NodeID, Set<NodeID>>> objAdjList;
 
@@ -209,6 +210,9 @@ void VersionedFlowSensitive::serialMeldLabel(void)
             }
         }
     }
+
+    double end = stat->getClk(true);
+    meldLabelingTime = (end - start) / TIMEINTERVAL;
 }
 
 bool VersionedFlowSensitive::meld(MeldVersion &mv1, MeldVersion &mv2)
