@@ -147,11 +147,17 @@ void VersionedFlowSensitive::meldLabel(void) {
 
 void VersionedFlowSensitive::serialMeldLabel(void)
 {
+    // o -> (n -> indirect (o) outgoing neighbours of n).
+    Map<NodeID, Map<NodeID, Set<NodeID>>> objAdjList;
+
     // Pass over entire SVFG and give every possible version a value (empty) to ensure
     // that meldConsume and meldYield will never have new <key, value> pairs added..
     // If each possible key has a value, we can use access the map in a read-only manner
     // (the <key, value> mapping, that is; the values will still be modified) and thus not
     // risk rehashing and thus iterator/reference invalidation.
+    //
+    // Also construct an adjaceny list representation for each object.
+    //
     // This loop can piggyback off of the loop in preLabel, but it's more readable
     // this way. If performance becomes a problem, we could do that.
     for (SVFG::iterator it = svfg->begin(); it != svfg->end(); ++it)
@@ -180,6 +186,27 @@ void VersionedFlowSensitive::serialMeldLabel(void)
             if (delta(s)) continue;
             const PointsTo &prePts = mr->getPointsTo();
             for (const NodeID o : prePts) sMeldConsume[o];
+        }
+        else
+        {
+            // Past this point, we are no longer dealing with irrelevant nodes.
+            continue;
+        }
+
+        // This node is definitely one of interest due to the continue above.
+        for (const SVFGEdge *e : sn->getInEdges())
+        {
+            const IndirectSVFGEdge *ie = SVFUtil::dyn_cast<IndirectSVFGEdge>(e);
+            if (ie == nullptr) continue;
+
+            const NodeID src = ie->getSrcNode()->getId();
+            // ie is s's incoming edge.
+            const NodeID dst = s;
+
+            for (const NodeID o : ie->getPointsTo())
+            {
+                objAdjList[o][src].insert(dst);
+            }
         }
     }
 }
