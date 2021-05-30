@@ -39,9 +39,16 @@ void VersionedFlowSensitive::initialize()
 
     vPtD = getVersionedPTDataTy();
 
-    prelabel();
-    if (Options::SerialVersioning) meldLabel();
-    else serialMeldLabel();
+    if (Options::SerialVersioning)
+    {
+        serialMeldLabel();
+    }
+    else
+    {
+        prelabel();
+        meldLabel();
+    }
+
     mapMeldVersions();
 
     determineReliance();
@@ -142,6 +149,9 @@ void VersionedFlowSensitive::meldLabel(void) {
     }
 
     double end = stat->getClk(true);
+
+    llvm::outs() << "MELD : " << end << "\n";
+
     meldLabelingTime = (end - start) / TIMEINTERVAL;
 }
 
@@ -153,32 +163,36 @@ void VersionedFlowSensitive::serialMeldLabel(void)
     // Worklists for versioning each object.
     Map<NodeID, FIFOWorkList<NodeID>> worklists;
 
-    // Pass over entire SVFG and give every possible version a value (empty) to ensure
-    // that meldConsume and meldYield will never have new <key, value> pairs added..
-    // If each possible key has a value, we can use access the map in a read-only manner
-    // (the <key, value> mapping, that is; the values will still be modified) and thus not
-    // risk rehashing and thus iterator/reference invalidation.
+    // Pass over entire SVFG and...
+    // 1. Prelabel.
     //
-    // Also construct an adjaceny list representation for each object.
+    // 2. Give every possible version a value (empty) to ensure
+    //    that meldConsume and meldYield will never have new <key, value> pairs added.
+    //    If each possible key has a value, we can access the map in a read-only manner
+    //    (the <key, value> mapping, that is; the values will still be modified) and thus not
+    //    risk rehashing and thus iterator/reference invalidation.
     //
-    // This loop can piggyback off of the loop in preLabel, but it's more readable
-    // this way. If performance becomes a problem, we could do that.
+    // 3. Construct an adjacency list representation for each object.
     for (SVFG::iterator it = svfg->begin(); it != svfg->end(); ++it)
     {
         const NodeID s = it->first;
         const SVFGNode *sn = it->second;
 
-        ObjToMeldVersionMap sMeldConsume = meldConsume[s];
+        ObjToMeldVersionMap &sMeldConsume = meldConsume[s];
+        ObjToMeldVersionMap &sMeldYield = meldYield[s];
 
         if (const StoreSVFGNode *store = SVFUtil::dyn_cast<StoreSVFGNode>(sn))
         {
-            // Yields already set, consumes need to be set.
+            // Set consumes to empty/initial, and set yields to new versions (prelabel).
             const PointsTo &prePts = ander->getPts(store->getPAGDstNodeID());
             for (const NodeID o : prePts)
             {
+                sMeldYield[o] = newMeldVersion(o);
                 sMeldConsume[o];
                 worklists[o].push(s);
             }
+
+            if (!prePts.empty()) ++numPrelabeledNodes;
         }
         else if (const LoadSVFGNode *load = SVFUtil::dyn_cast<LoadSVFGNode>(sn))
         {
@@ -194,19 +208,20 @@ void VersionedFlowSensitive::serialMeldLabel(void)
             // Some consumes may be set if it is a delta node, though.
             if (delta(s))
             {
-                for (const NodeID o : prePts) worklists[o].push(s);
-                continue;
+                for (const NodeID o : prePts)
+                {
+                    sMeldConsume[o] = newMeldVersion(o);
+                    worklists[o].push(s);
+                }
+
+                if (!prePts.empty()) ++numPrelabeledNodes;
             }
-
-            for (const NodeID o : prePts) sMeldConsume[o];
-        }
-        else
-        {
-            // Past this point, we are no longer dealing with irrelevant nodes.
-            continue;
+            else
+            {
+                for (const NodeID o : prePts) sMeldConsume[o];
+            }
         }
 
-        // This node is definitely one of interest due to the continue above.
         for (const SVFGEdge *e : sn->getInEdges())
         {
             const IndirectSVFGEdge *ie = SVFUtil::dyn_cast<IndirectSVFGEdge>(e);
@@ -224,6 +239,40 @@ void VersionedFlowSensitive::serialMeldLabel(void)
     }
 
     double end = stat->getClk(true);
+    prelabelingTime = (end - start) / TIMEINTERVAL;
+
+    start = stat->getClk(true);
+    for (const Map<NodeID, Map<NodeID, Set<NodeID>>>::value_type &osds : objAdjList)
+    {
+        const NodeID o = osds.first;
+        Map<NodeID, Set<NodeID>> &oGraph = objAdjList[o];
+        FIFOWorkList<NodeID> &oWorklist = worklists[o];
+
+        while (!oWorklist.empty())
+        {
+            const NodeID l = oWorklist.pop();
+            const SVFGNode *ln = svfg->getSVFGNode(l);
+            // For stores, yield != consume, otherwise they are the same.
+            ObjToMeldVersionMap &myl = SVFUtil::isa<StoreSVFGNode>(ln) ? meldYield[l]
+                                                                       : meldConsume[l];
+            MeldVersion &mylo = myl[o];
+            for (const NodeID lp : oGraph[l]) {
+                // Delta nodes had c set already and they are permanent.
+                if (delta(lp)) continue;
+
+                bool lpIsStore = SVFUtil::isa<StoreSVFGNode>(svfg->getSVFGNode(lp));
+                // Consume and yield are the same for non-stores, so ignore them.
+                if (l == lp && !lpIsStore) continue;
+
+                // Yield == consume for non-stores, so when consume is updated, so is yield.
+                // For stores, yield was already set, and it's static.
+                bool lpYieldChanged = meld(meldConsume[lp][o], mylo) && !lpIsStore;
+                if (lpYieldChanged) oWorklist.push(lp);
+            }
+        }
+    }
+
+    end = stat->getClk(true);
     meldLabelingTime = (end - start) / TIMEINTERVAL;
 }
 
