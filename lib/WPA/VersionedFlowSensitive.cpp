@@ -47,9 +47,8 @@ void VersionedFlowSensitive::initialize()
     {
         prelabel();
         meldLabel();
+        mapMeldVersions();
     }
-
-    mapMeldVersions();
 
     determineReliance();
 }
@@ -149,9 +148,6 @@ void VersionedFlowSensitive::meldLabel(void) {
     }
 
     double end = stat->getClk(true);
-
-    llvm::outs() << "MELD : " << end << "\n";
-
     meldLabelingTime = (end - start) / TIMEINTERVAL;
 }
 
@@ -162,6 +158,9 @@ void VersionedFlowSensitive::serialMeldLabel(void)
     Map<NodeID, Map<NodeID, Set<NodeID>>> objAdjList;
     // Worklists for versioning each object.
     Map<NodeID, FIFOWorkList<NodeID>> worklists;
+
+    ObjMeldVersionMap serialMeldConsume;
+    ObjMeldVersionMap serialMeldYield;
 
     // Pass over entire SVFG and...
     // 1. Prelabel.
@@ -178,17 +177,18 @@ void VersionedFlowSensitive::serialMeldLabel(void)
         const NodeID s = it->first;
         const SVFGNode *sn = it->second;
 
-        ObjToMeldVersionMap &sMeldConsume = meldConsume[s];
-        ObjToMeldVersionMap &sMeldYield = meldYield[s];
-
         if (const StoreSVFGNode *store = SVFUtil::dyn_cast<StoreSVFGNode>(sn))
         {
             // Set consumes to empty/initial, and set yields to new versions (prelabel).
             const PointsTo &prePts = ander->getPts(store->getPAGDstNodeID());
             for (const NodeID o : prePts)
             {
-                sMeldYield[o] = newMeldVersion(o);
-                sMeldConsume[o];
+                serialMeldYield[o][s] = newMeldVersion(o);
+                serialMeldConsume[o][s];
+
+                yield[s][o];
+                consume[s][o];
+
                 worklists[o].push(s);
             }
 
@@ -198,7 +198,11 @@ void VersionedFlowSensitive::serialMeldLabel(void)
         {
             // Yields = consumes so just consumes need to be set.
             const PointsTo &prePts = ander->getPts(load->getPAGSrcNodeID());
-            for (const NodeID o : prePts) sMeldConsume[o];
+            for (const NodeID o : prePts)
+            {
+                serialMeldConsume[o][s];
+                consume[s][o];
+            }
         }
         else if (const MRSVFGNode *mr = SVFUtil::dyn_cast<MRSVFGNode>(sn))
         {
@@ -210,7 +214,8 @@ void VersionedFlowSensitive::serialMeldLabel(void)
             {
                 for (const NodeID o : prePts)
                 {
-                    sMeldConsume[o] = newMeldVersion(o);
+                    serialMeldConsume[o][s] = newMeldVersion(o);
+                    consume[s][o];
                     worklists[o].push(s);
                 }
 
@@ -218,7 +223,11 @@ void VersionedFlowSensitive::serialMeldLabel(void)
             }
             else
             {
-                for (const NodeID o : prePts) sMeldConsume[o];
+                for (const NodeID o : prePts)
+                {
+                    serialMeldConsume[o][s];
+                    consume[s][o];
+                }
             }
         }
 
@@ -242,20 +251,30 @@ void VersionedFlowSensitive::serialMeldLabel(void)
     prelabelingTime = (end - start) / TIMEINTERVAL;
 
     start = stat->getClk(true);
+    Map<MeldVersion, Version> mvv;
+    Version currVersion = 1;
+
+    // Since we are doing one object at a time, serial meld labelling benefits from
+    // going obj -> (loc -> version) instead of loc -> ... because we can cache the
+    // first step (meldConsume[obj]/meldYield[obj}).
+    double sum = 0.0;
     for (const Map<NodeID, Map<NodeID, Set<NodeID>>>::value_type &osds : objAdjList)
     {
         const NodeID o = osds.first;
         Map<NodeID, Set<NodeID>> &oGraph = objAdjList[o];
         FIFOWorkList<NodeID> &oWorklist = worklists[o];
 
+        LocToMeldVersionMap &myo = serialMeldYield[o];
+        LocToMeldVersionMap &mco = serialMeldConsume[o];
+
         while (!oWorklist.empty())
         {
             const NodeID l = oWorklist.pop();
             const SVFGNode *ln = svfg->getSVFGNode(l);
-            // For stores, yield != consume, otherwise they are the same.
-            ObjToMeldVersionMap &myl = SVFUtil::isa<StoreSVFGNode>(ln) ? meldYield[l]
-                                                                       : meldConsume[l];
-            MeldVersion &mylo = myl[o];
+            // For stores, yield != consume, otherwise they are the same, so we can just use mco.
+            ObjToMeldVersionMap &myoRep = SVFUtil::isa<StoreSVFGNode>(ln) ? myo : mco;
+
+            MeldVersion &myol = myoRep[l];
             for (const NodeID lp : oGraph[l]) {
                 // Delta nodes had c set already and they are permanent.
                 if (delta(lp)) continue;
@@ -266,10 +285,37 @@ void VersionedFlowSensitive::serialMeldLabel(void)
 
                 // Yield == consume for non-stores, so when consume is updated, so is yield.
                 // For stores, yield was already set, and it's static.
-                bool lpYieldChanged = meld(meldConsume[lp][o], mylo) && !lpIsStore;
+                bool lpYieldChanged = meld(mco[lp], myol) && !lpIsStore;
                 if (lpYieldChanged) oWorklist.push(lp);
             }
         }
+
+        // Map the meld versions of o to real versions.
+        for (const LocToMeldVersionMap::value_type &lmv : myo)
+        {
+            const NodeID l = lmv.first;
+            const MeldVersion &mv = lmv.second;
+
+            Map<MeldVersion, Version>::const_iterator foundVersion = mvv.find(mv);
+            Version v = foundVersion == mvv.end() ? mvv[mv] = ++currVersion : foundVersion->second;
+            yield[l][o] = v;
+        }
+
+        for (const LocToMeldVersionMap::value_type &lmv : mco)
+        {
+            const NodeID l = lmv.first;
+            const MeldVersion &mv = lmv.second;
+
+            Map<MeldVersion, Version>::const_iterator foundVersion = mvv.find(mv);
+            Version v = foundVersion == mvv.end() ? mvv[mv] = ++currVersion : foundVersion->second;
+            consume[l][o] = v;
+            // At non-stores, consume == yield.
+            if (!SVFUtil::isa<StoreSVFGNode>(svfg->getSVFGNode(l))) yield[l][o] = v;
+        }
+
+        // No longer need mco/myo: save space.
+        myo.clear();
+        mco.clear();
     }
 
     end = stat->getClk(true);

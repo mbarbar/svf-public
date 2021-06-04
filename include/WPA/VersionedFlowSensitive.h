@@ -34,11 +34,14 @@ private:
 public:
     typedef Map<NodeID, Version> ObjToVersionMap;
     typedef Map<NodeID, MeldVersion> ObjToMeldVersionMap;
+    typedef Map<NodeID, MeldVersion> LocToMeldVersionMap;
     typedef Map<VersionedVar, const DummyVersionPropSVFGNode *> VarToPropNodeMap;
 
     typedef Map<NodeID, ObjToVersionMap> LocVersionMap;
     /// Maps locations to all versions it sees (through objects).
     typedef Map<NodeID, ObjToMeldVersionMap> LocMeldVersionMap;
+    /// Maps objects to all versions it has (at locations).
+    typedef Map<NodeID, LocToMeldVersionMap> ObjMeldVersionMap;
     /// (o -> (v -> versions with rely on o:v).
     typedef Map<NodeID, Map<Version, Set<Version>>> VersionRelianceMap;
 
