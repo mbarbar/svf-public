@@ -114,7 +114,7 @@ private:
     /// Meld label the prelabeled SVFG.
     void meldLabel(void);
     /// Melds v2 into v1 (in place), returns whether a change occurred.
-    bool meld(MeldVersion &mv1, MeldVersion &mv2);
+    static bool meld(MeldVersion &mv1, const MeldVersion &mv2);
 
     /// Moves meldConsume/Yield to consume/yield.
     void mapMeldVersions();

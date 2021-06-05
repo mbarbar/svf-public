@@ -125,11 +125,11 @@ void VersionedFlowSensitive::meldLabel(void) {
             if (l == lp && !lpIsStore) continue;
 
             // At stores yield != consume, otherwise they are the same (so just use meldConsume).
-            ObjToMeldVersionMap &myl = SVFUtil::isa<StoreSVFGNode>(ln) ? meldYield[l] : meldConsume[l];
+            const ObjToMeldVersionMap &myl = SVFUtil::isa<StoreSVFGNode>(ln) ? meldYield[l] : meldConsume[l];
             ObjToMeldVersionMap &mclp = meldConsume[lp];
             bool yieldChanged = false;
             for (NodeID o : ie->getPointsTo()) {
-                ObjToMeldVersionMap::iterator myloIt = myl.find(o);
+                ObjToMeldVersionMap::const_iterator myloIt = myl.find(o);
                 if (myloIt == myl.end()) continue;
 
                 // Yield == consume for non-stores, so when consume is updated, so is yield.
@@ -145,7 +145,7 @@ void VersionedFlowSensitive::meldLabel(void) {
     meldLabelingTime = (end - start) / TIMEINTERVAL;
 }
 
-bool VersionedFlowSensitive::meld(MeldVersion &mv1, MeldVersion &mv2)
+bool VersionedFlowSensitive::meld(MeldVersion &mv1, const MeldVersion &mv2)
 {
     // Meld operator is union of bit vectors.
     return mv1 |= mv2;
