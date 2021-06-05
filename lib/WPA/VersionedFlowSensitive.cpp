@@ -60,24 +60,22 @@ void VersionedFlowSensitive::prelabel(void)
     for (SVFG::iterator it = svfg->begin(); it != svfg->end(); ++it)
     {
         NodeID l = it->first;
-        const SVFGNode *sn = it->second;
+        const SVFGNode *ln = it->second;
 
-        if (const StoreSVFGNode *stn = SVFUtil::dyn_cast<StoreSVFGNode>(sn))
+        if (const StoreSVFGNode *stn = SVFUtil::dyn_cast<StoreSVFGNode>(ln))
         {
             // l: *p = q.
             // If p points to o (Andersen's), l yields a new version for o.
             NodeID p = stn->getPAGDstNodeID();
+            ObjToMeldVersionMap &myl = meldYield[l];
             for (NodeID o : ander->getPts(p))
             {
-                meldYield[l][o] = newMeldVersion(o);
+                myl[o] = newMeldVersion(o);
             }
 
             vWorklist.push(l);
 
-            if (ander->getPts(p).count() != 0)
-            {
-                ++numPrelabeledNodes;
-            }
+            if (ander->getPts(p).count() != 0) ++numPrelabeledNodes;
         }
         else if (delta(l))
         {
@@ -85,12 +83,13 @@ void VersionedFlowSensitive::prelabel(void)
             // move around nodes such that there can be an MRSVFGNode with no incoming or
             // outgoing edges which will be added at runtime. In essence, we can no
             // longer rely on the outgoing edges of a delta node when SVFGOPT is enabled.
-            const MRSVFGNode *mr = SVFUtil::dyn_cast<MRSVFGNode>(sn);
+            const MRSVFGNode *mr = SVFUtil::dyn_cast<MRSVFGNode>(ln);
             if (mr != nullptr)
             {
+                ObjToMeldVersionMap &mcl = meldConsume[l];
                 for (const NodeID o : mr->getPointsTo())
                 {
-                    meldConsume[l][o] = newMeldVersion(o);
+                    mcl[o] = newMeldVersion(o);
                 }
 
                 // Push into worklist because its consume == its yield.
