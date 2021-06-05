@@ -108,10 +108,10 @@ void VersionedFlowSensitive::meldLabel(void) {
 
     while (!vWorklist.empty()) {
         NodeID l = vWorklist.pop();
-        const SVFGNode *sl = svfg->getSVFGNode(l);
+        const SVFGNode *ln = svfg->getSVFGNode(l);
 
         // Propagate l's y to lp's c for all l --o--> lp.
-        for (const SVFGEdge *e : sl->getOutEdges()) {
+        for (const SVFGEdge *e : ln->getOutEdges()) {
             const IndirectSVFGEdge *ie = SVFUtil::dyn_cast<IndirectSVFGEdge>(e);
             if (!ie) continue;
 
@@ -120,19 +120,21 @@ void VersionedFlowSensitive::meldLabel(void) {
             if (delta(lp)) continue;
 
             bool lpIsStore = SVFUtil::isa<StoreSVFGNode>(svfg->getSVFGNode(lp));
-            // Consume and yield are the same for non-stores, so ignore them.
+            // Consume and yield are the same at non-stores, so ignore any self-loop
+            // at a non-store.
             if (l == lp && !lpIsStore) continue;
 
-            // For stores, yield != consume, otherwise they are the same.
-            ObjToMeldVersionMap &myl = SVFUtil::isa<StoreSVFGNode>(sl) ? meldYield[l]
-                                                                       : meldConsume[l];
+            // At stores yield != consume, otherwise they are the same (so just use meldConsume).
+            ObjToMeldVersionMap &myl = SVFUtil::isa<StoreSVFGNode>(ln) ? meldYield[l] : meldConsume[l];
             ObjToMeldVersionMap &mclp = meldConsume[lp];
             bool yieldChanged = false;
             for (NodeID o : ie->getPointsTo()) {
-                if (myl.find(o) == myl.end()) continue;
+                ObjToMeldVersionMap::iterator myloIt = myl.find(o);
+                if (myloIt == myl.end()) continue;
+
                 // Yield == consume for non-stores, so when consume is updated, so is yield.
                 // For stores, yield was already set, and it's static.
-                yieldChanged = (meld(mclp[o], myl[o]) && !lpIsStore) || yieldChanged;
+                yieldChanged = (meld(mclp[o], myloIt->second) && !lpIsStore) || yieldChanged;
             }
 
             if (yieldChanged) vWorklist.push(lp);
