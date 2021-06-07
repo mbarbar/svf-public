@@ -151,7 +151,6 @@ bool VersionedFlowSensitive::meld(MeldVersion &mv1, const MeldVersion &mv2)
     return mv1 |= mv2;
 }
 
-
 void VersionedFlowSensitive::mapMeldVersions(void)
 {
     double start = stat->getClk(true);
@@ -165,7 +164,7 @@ void VersionedFlowSensitive::mapMeldVersions(void)
     for (LocMeldVersionMap::value_type &lomv : meldConsume)
     {
         NodeID l = lomv.first;
-        bool isStore = SVFUtil::isa<StoreSVFGNode>(svfg->getSVFGNode(l));
+        bool lIsStore = SVFUtil::isa<StoreSVFGNode>(svfg->getSVFGNode(l));
         ObjToVersionMap &consumel = consume[l];
         ObjToVersionMap &yieldl = yield[l];
         for (ObjToMeldVersionMap::value_type &omv : lomv.second)
@@ -174,14 +173,15 @@ void VersionedFlowSensitive::mapMeldVersions(void)
             MeldVersion &mv = omv.second;
 
             Map<MeldVersion, Version>::const_iterator foundVersion = mvv.find(mv);
-            // If a mapping for foudnVersion exists, use it, otherwise create a new Version,
-            // keep track of it, and use that.
+            // If a mapping for foudnVersion exists, use it, otherwise create a new Version (++),
+            // keep track of it ([mv]), and use that.
             Version v = foundVersion == mvv.end() ? mvv[mv] = ++curVersion : foundVersion->second;
             consumel[o] = v;
             // At non-stores, consume == yield.
-            if (!isStore) {
-                yieldl[o] = v;
-            }
+            // Unlike meldYield, we use yield for all yields, not just where consume != yield.
+            // This affords simplicity later. meldYield is expensive to explicitly represent
+            // always, unlike yield.
+            if (!lIsStore) yieldl[o] = v;
         }
     }
 
@@ -263,8 +263,8 @@ void VersionedFlowSensitive::determineReliance(void)
     for (SVFG::iterator it = svfg->begin(); it != svfg->end(); ++it)
     {
         NodeID l = it->first;
-        const SVFGNode *sn = it->second;
-        for (const SVFGEdge *e : sn->getOutEdges())
+        const SVFGNode *ln = it->second;
+        for (const SVFGEdge *e : ln->getOutEdges())
         {
             const IndirectSVFGEdge *ie = SVFUtil::dyn_cast<IndirectSVFGEdge>(e);
             if (!ie) continue;
@@ -275,20 +275,16 @@ void VersionedFlowSensitive::determineReliance(void)
                 // Given l --o--> lp, c(o) at lp relies on y(o) at l.
                 NodeID lp = ie->getDstNode()->getId();
 
-                if (!hasVersion(l, o, YIELD)) continue;
+                if (!hasVersion(l, o, YIELD) || !hasVersion(lp, o, CONSUME)) continue;
                 Version &y = yieldl[o];
-
-                if (!hasVersion(lp, o, CONSUME)) continue;
                 Version &cp = consume[lp][o];
-                if (cp != y)
-                {
-                    versionReliance[o][y].insert(cp);
-                }
+
+                if (cp != y) versionReliance[o][y].insert(cp);
             }
         }
 
         // When an object/version points-to set changes, these nodes need to know.
-        if (SVFUtil::isa<LoadSVFGNode>(sn) || SVFUtil::isa<StoreSVFGNode>(sn))
+        if (SVFUtil::isa<LoadSVFGNode>(ln) || SVFUtil::isa<StoreSVFGNode>(ln))
         {
             for (ObjToVersionMap::value_type &ov : consume[l])
             {
@@ -317,9 +313,9 @@ void VersionedFlowSensitive::propagateVersion(NodeID o, Version v)
             if (vPtD->unionPts(dstVar, srcVar))
             {
                 // o/r has changed.
-                // Add the dummy node to propagate it.
-                VarToPropNodeMap::const_iterator dvpIt = versionedVarToPropNode.find(dstVar);
+                // Add the dummy propagation node to tell the solver to propagate it later.
                 const DummyVersionPropSVFGNode *dvp = nullptr;
+                VarToPropNodeMap::const_iterator dvpIt = versionedVarToPropNode.find(dstVar);
                 if (dvpIt == versionedVarToPropNode.end())
                 {
                     dvp = svfg->addDummyVersionPropSVFGNode(o, r);
@@ -330,10 +326,7 @@ void VersionedFlowSensitive::propagateVersion(NodeID o, Version v)
                 pushIntoWorklist(dvp->getId());
 
                 // Notify nodes which rely on o/r that it changed.
-                for (NodeID s : stmtReliance[o][r])
-                {
-                    pushIntoWorklist(s);
-                }
+                for (NodeID s : stmtReliance[o][r]) pushIntoWorklist(s);
             }
         }
     }
@@ -377,12 +370,14 @@ void VersionedFlowSensitive::updateConnectedNodes(const SVFGEdgeSetTy& newEdges)
 
             const PointsTo &ept = ie->getPointsTo();
             // For every o, such that src --o--> dst, we need to set up reliance (and propagate).
+            ObjToVersionMap &consumeDst = consume[dst];
+            ObjToVersionMap &yieldSrc = yield[src];
             for (NodeID o : ept)
             {
                 if (!hasVersion(src, o, YIELD)) continue;
-                Version &srcY = yield[src][o];
                 if (!hasVersion(dst, o, CONSUME)) continue;
-                Version &dstC = consume[dst][o];
+                Version &srcY = yieldSrc[o];
+                Version &dstC = consumeDst[o];
 
                 Set<Version> &versionsRelyingOnSrcY = versionReliance[o][srcY];
                 if (versionsRelyingOnSrcY.find(dstC) == versionsRelyingOnSrcY.end())
@@ -515,10 +510,7 @@ bool VersionedFlowSensitive::processStore(const StoreSVFGNode* store)
             propagateVersion(o, y);
 
             // Some o/v pairs changed: statements need to know.
-            for (NodeID s : stmtReliance[o][y])
-            {
-                pushIntoWorklist(s);
-            }
+            for (NodeID s : stmtReliance[o][y]) pushIntoWorklist(s);
         }
     }
 
