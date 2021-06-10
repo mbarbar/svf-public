@@ -28,6 +28,9 @@ VersionedFlowSensitive::VersionedFlowSensitive(PAG *_pag, PTATY type)
     numPrelabeledNodes = numPrelabelVersions = 0;
     relianceTime = prelabelingTime = meldLabelingTime = meldMappingTime = versionPropTime = 0.0;
     // We'll grab vPtD in initialize.
+
+    consumeCache = { 0, nullptr, false };
+    yieldCache = { 0, nullptr, false };
 }
 
 void VersionedFlowSensitive::initialize()
@@ -51,7 +54,7 @@ void VersionedFlowSensitive::finalize()
     FlowSensitive::finalize();
     // vPtD->dumpPTData();
     // dumpReliances();
-    // dumpLocVersionMaps();
+    dumpLocVersionMaps();
 }
 
 void VersionedFlowSensitive::prelabel(void)
@@ -165,8 +168,6 @@ void VersionedFlowSensitive::mapMeldVersions(void)
     {
         NodeID l = lomv.first;
         bool lIsStore = SVFUtil::isa<StoreSVFGNode>(svfg->getSVFGNode(l));
-        ObjToVersionMap &consumel = consume[l];
-        ObjToVersionMap &yieldl = yield[l];
         for (ObjToMeldVersionMap::value_type &omv : lomv.second)
         {
             NodeID o = omv.first;
@@ -176,12 +177,12 @@ void VersionedFlowSensitive::mapMeldVersions(void)
             // If a mapping for foudnVersion exists, use it, otherwise create a new Version (++),
             // keep track of it ([mv]), and use that.
             Version v = foundVersion == mvv.end() ? mvv[mv] = ++curVersion : foundVersion->second;
-            consumel[o] = v;
+            setConsume(l, o, v);
             // At non-stores, consume == yield.
             // Unlike meldYield, we use yield for all yields, not just where consume != yield.
             // This affords simplicity later. meldYield is expensive to explicitly represent
             // always, unlike yield.
-            if (!lIsStore) yieldl[o] = v;
+            if (!lIsStore) setYield(l, o, v);
         }
     }
 
@@ -189,7 +190,6 @@ void VersionedFlowSensitive::mapMeldVersions(void)
     for (LocMeldVersionMap::value_type &lomv : meldYield)
     {
         NodeID l = lomv.first;
-        ObjToVersionMap &yieldl = yield[l];
         for (ObjToMeldVersionMap::value_type &omv : lomv.second)
         {
             NodeID o = omv.first;
@@ -197,7 +197,7 @@ void VersionedFlowSensitive::mapMeldVersions(void)
 
             Map<MeldVersion, Version>::const_iterator foundVersion = mvv.find(mv);
             Version v = foundVersion == mvv.end() ? mvv[mv] = ++curVersion : foundVersion->second;
-            yieldl[o] = v;
+            setYield(l, o, v);
         }
     }
 
@@ -248,15 +248,6 @@ VersionedFlowSensitive::MeldVersion VersionedFlowSensitive::newMeldVersion(NodeI
     return nv;
 }
 
-bool VersionedFlowSensitive::hasVersion(NodeID l, NodeID o, enum VersionType v) const
-{
-    // Choose which map we are checking.
-    const LocVersionMap &m = v == CONSUME ? consume : yield;
-    const LocVersionMap::const_iterator ml = m.find(l);
-    if (ml == m.end()) return false;
-    return ml->second.find(o) != ml->second.end();
-}
-
 void VersionedFlowSensitive::determineReliance(void)
 {
     double start = stat->getClk(true);
@@ -269,15 +260,15 @@ void VersionedFlowSensitive::determineReliance(void)
             const IndirectSVFGEdge *ie = SVFUtil::dyn_cast<IndirectSVFGEdge>(e);
             if (!ie) continue;
 
-            ObjToVersionMap &yieldl = yield[l];
-            for (NodeID o : ie->getPointsTo())
+            for (const NodeID o : ie->getPointsTo())
             {
                 // Given l --o--> lp, c(o) at lp relies on y(o) at l.
-                NodeID lp = ie->getDstNode()->getId();
+                const NodeID lp = ie->getDstNode()->getId();
 
-                if (!hasVersion(l, o, YIELD) || !hasVersion(lp, o, CONSUME)) continue;
-                Version &y = yieldl[o];
-                Version &cp = consume[lp][o];
+                const Version y = getYield(l, o);
+                if (y == invalidVersion) continue;
+                const Version cp = getConsume(lp, o);
+                if (cp == invalidVersion) continue;
 
                 if (cp != y) versionReliance[o][y].insert(cp);
             }
@@ -286,11 +277,15 @@ void VersionedFlowSensitive::determineReliance(void)
         // When an object/version points-to set changes, these nodes need to know.
         if (SVFUtil::isa<LoadSVFGNode>(ln) || SVFUtil::isa<StoreSVFGNode>(ln))
         {
-            for (ObjToVersionMap::value_type &ov : consume[l])
+            const LocVersionMap::const_iterator lovmIt = consume.find(l);
+            if (lovmIt != consume.end())
             {
-                NodeID o = ov.first;
-                Version &v = ov.second;
-                stmtReliance[o][v].set(l);
+                for (const ObjToVersionMap::value_type &ov : lovmIt->second)
+                {
+                    const NodeID o = ov.first;
+                    const Version v = ov.second;
+                    stmtReliance[o][v].set(l);
+                }
             }
         }
     }
@@ -370,14 +365,12 @@ void VersionedFlowSensitive::updateConnectedNodes(const SVFGEdgeSetTy& newEdges)
 
             const PointsTo &ept = ie->getPointsTo();
             // For every o, such that src --o--> dst, we need to set up reliance (and propagate).
-            ObjToVersionMap &consumeDst = consume[dst];
-            ObjToVersionMap &yieldSrc = yield[src];
-            for (NodeID o : ept)
+            for (const NodeID o : ept)
             {
-                if (!hasVersion(src, o, YIELD)) continue;
-                if (!hasVersion(dst, o, CONSUME)) continue;
-                Version &srcY = yieldSrc[o];
-                Version &dstC = consumeDst[o];
+                Version srcY = getYield(src, o);
+                if (srcY == invalidVersion) continue;
+                Version dstC = getConsume(dst, o);
+                if (dstC == invalidVersion) continue;
 
                 Set<Version> &versionsRelyingOnSrcY = versionReliance[o][srcY];
                 if (versionsRelyingOnSrcY.find(dstC) == versionsRelyingOnSrcY.end())
@@ -406,7 +399,8 @@ bool VersionedFlowSensitive::processLoad(const LoadSVFGNode* load)
     {
         if (pag->isConstantObj(o) || pag->isNonPointerObj(o)) continue;
 
-        if (hasVersion(l, o, CONSUME) && vPtD->unionPts(p, atKey(o, consume[l][o])))
+        const Version c = getConsume(l, o);
+        if (c != invalidVersion && vPtD->unionPts(p, atKey(o, c)))
         {
             changed = true;
         }
@@ -418,7 +412,8 @@ bool VersionedFlowSensitive::processLoad(const LoadSVFGNode* load)
             const NodeBS& fields = getAllFieldsObjNode(o);
             for (NodeID of : fields)
             {
-                if (hasVersion(l, of, CONSUME) && vPtD->unionPts(p, atKey(of, consume[l][of])))
+                const Version c = getConsume(l, of);
+                if (c != invalidVersion && vPtD->unionPts(p, atKey(of, c)))
                 {
                     changed = true;
                 }
@@ -455,7 +450,8 @@ bool VersionedFlowSensitive::processStore(const StoreSVFGNode* store)
         {
             if (pag->isConstantObj(o) || pag->isNonPointerObj(o)) continue;
 
-            if (hasVersion(l, o, YIELD) && vPtD->unionPts(atKey(o, yield[l][o]), q))
+            const Version y = getYield(l, o);
+            if (y != invalidVersion && vPtD->unionPts(atKey(o, y), q))
             {
                 changed = true;
                 changedObjects.set(o);
@@ -475,22 +471,23 @@ bool VersionedFlowSensitive::processStore(const StoreSVFGNode* store)
 
     // For all objects, perform pts(o:y) = pts(o:y) U pts(o:c) at loc,
     // except when a strong update is taking place.
-    ObjToVersionMap &yieldL = yield[l];
-    ObjToVersionMap &consumeL = consume[l];
-    for (ObjToVersionMap::value_type &oc : consumeL)
+    const LocVersionMap::const_iterator lovmIt = consume.find(l);
+    if (lovmIt != consume.end())
     {
-        NodeID o = oc.first;
-        Version c = oc.second;
-
-        // Strong-updated; don't propagate.
-        if (isSU && o == singleton) continue;
-
-        if (!hasVersion(l, o, YIELD)) continue;
-        Version y = yieldL[o];
-        if (vPtD->unionPts(atKey(o, y), atKey(o, c)))
+        for (const ObjToVersionMap::value_type &oc : lovmIt->second)
         {
-            changed = true;
-            changedObjects.set(o);
+            const NodeID o = oc.first;
+            const Version c = oc.second;
+
+            // Strong-updated; don't propagate.
+            if (isSU && o == singleton) continue;
+
+            const Version y = getYield(l, o);
+            if (y != invalidVersion && vPtD->unionPts(atKey(o, y), atKey(o, c)))
+            {
+                changed = true;
+                changedObjects.set(o);
+            }
         }
     }
 
@@ -501,12 +498,11 @@ bool VersionedFlowSensitive::processStore(const StoreSVFGNode* store)
     // *except* for time taken for propagateVersion, which will time itself.
     if (!changedObjects.empty())
     {
-        ObjToVersionMap &yieldl = yield[l];
-        for (NodeID o : changedObjects)
+        for (const NodeID o : changedObjects)
         {
             // Definitely has a yielded version (came from prelabelling) as these are
             // the changed objects which must've been pointed to in Andersen's too.
-            const Version y = yieldl[o];
+            const Version y = getYield(l, o);
             propagateVersion(o, y);
 
             // Some o/v pairs changed: statements need to know.
@@ -515,6 +511,67 @@ bool VersionedFlowSensitive::processStore(const StoreSVFGNode* store)
     }
 
     return changed;
+}
+
+Version VersionedFlowSensitive::getVersion(const NodeID l, const NodeID o, VersionCache &cache, LocVersionMap &lvm)
+{
+    if (cache.valid && l == cache.l)
+    {
+        ObjToVersionMap::const_iterator foundVersion = cache.ovm->find(o);
+        return foundVersion == cache.ovm->end() ? invalidVersion : foundVersion->second;
+    }
+
+    // Not const because the cache isn't as it is shared with setVersion.
+    LocVersionMap::iterator foundObjToVersionMap = lvm.find(l);
+    // If there are no obj -> version maps at l, then obviously there is no version for o.
+    if (foundObjToVersionMap == lvm.end()) return invalidVersion;
+
+    // We can cache lvm[l].
+    cache.l = l;
+    cache.ovm = &foundObjToVersionMap->second;
+    cache.valid = true;
+
+    ObjToVersionMap::const_iterator foundVersion = cache.ovm->find(o);
+    return foundVersion == cache.ovm->end() ? invalidVersion : foundVersion->second;
+}
+
+Version VersionedFlowSensitive::getConsume(const NodeID l, const NodeID o)
+{
+    return getVersion(l, o, consumeCache, consume);
+}
+
+Version VersionedFlowSensitive::getYield(const NodeID l, const NodeID o)
+{
+    return getVersion(l, o, yieldCache, yield);
+}
+
+void VersionedFlowSensitive::setVersion(const NodeID l, const NodeID o, const Version v, VersionCache &cache, LocVersionMap &lvm)
+{
+    if (cache.valid && l == cache.l)
+    {
+        (*cache.ovm)[o] = v;
+        return;
+    }
+
+    // This can invalidate the cache but we're updating it in the next statement anyway.
+    ObjToVersionMap &ovm = lvm[l];
+
+    // We can cache lvm[l].
+    cache.l = l;
+    cache.ovm = &ovm;
+    cache.valid = true;
+
+    ovm[o] = v;
+}
+
+void VersionedFlowSensitive::setConsume(const NodeID l, const NodeID o, const Version v)
+{
+    setVersion(l, o, v, consumeCache, consume);
+}
+
+void VersionedFlowSensitive::setYield(const NodeID l, const NodeID o, const Version v)
+{
+    setVersion(l, o, v, yieldCache, yield);
 }
 
 void VersionedFlowSensitive::dumpReliances(void) const
