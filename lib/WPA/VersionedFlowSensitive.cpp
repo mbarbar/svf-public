@@ -574,6 +574,16 @@ void VersionedFlowSensitive::setYield(const NodeID l, const NodeID o, const Vers
     setVersion(l, o, v, yieldCache, yield);
 }
 
+void VersionedFlowSensitive::invalidateYieldCache(void)
+{
+    yieldCache.valid = false;
+}
+
+void VersionedFlowSensitive::invalidateConsumeCache(void)
+{
+    consumeCache.valid = false;
+}
+
 void VersionedFlowSensitive::dumpReliances(void) const
 {
     SVFUtil::outs() << "# Version reliances\n";

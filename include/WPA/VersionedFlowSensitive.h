@@ -168,6 +168,12 @@ private:
     /// Sets the yielded version of o at l to v.
     void setYield(const NodeID l, const NodeID o, const Version v);
 
+    /// Invalidates yieldCache.
+    void invalidateYieldCache(void);
+
+    /// Invalidates consumeCache.
+    void invalidateConsumeCache(void);
+
     /// Dumps versionReliance and stmtReliance.
     void dumpReliances(void) const;
 
@@ -193,8 +199,12 @@ private:
 
     /// Like meldConsume but with Versions, not MeldVersions.
     /// Created after meld labeling from meldConsume and used during the analysis.
+    /// When modifying consume itself (not a value) outside of setConsume, invalidateConsumeCache
+    /// should be called. E.g. if a call like consume[l] is an insertion.
     LocVersionMap consume;
     /// Actual yield map. Yield analogue to consume.
+    /// When modifying yield itself (not a value) outside of setYield, invalidateYieldCache
+    /// should be called.
     LocVersionMap yield;
 
     /// Cache for the nested map in consume.
