@@ -48,14 +48,14 @@ public:
     /// Resets the cache removing everything except the emptyData it was initialised with.
     void reset(void)
     {
-        const Data *emptyData = idToPts[emptyPointsToId()];
-        for (const Data *d : idToPts) free(d);
+        const Data emptyData = *idToPts[emptyPointsToId()];
+        for (const Data *d : idToPts) delete d;
         idToPts.clear();
         ptsToId.clear();
 
         // Put the empty data back in.
-        ptsToId[*emptyData] = emptyPointsToId();
-        idToPts.push_back(emptyData);
+        ptsToId[emptyData] = emptyPointsToId();
+        idToPts.push_back(new Data(emptyData));
 
         unionCache.clear();
         complementCache.clear();

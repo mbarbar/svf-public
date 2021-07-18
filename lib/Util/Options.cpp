@@ -636,6 +636,12 @@ namespace SVF
         llvm::cl::desc("Prints alias evaluation of ctir instructions in FS analyses")
     );
 
+    const llvm::cl::opt<bool> Options::HashMeld(
+        "hash-meld",
+        llvm::cl::init(true),
+        llvm::cl::desc("Use hash-consing for meld labelling")
+    );
+
     
     // FlowSensitiveTBHC.cpp
     /// Whether we allow reuse for TBHC.

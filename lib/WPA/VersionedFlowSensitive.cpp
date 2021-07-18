@@ -42,9 +42,19 @@ void VersionedFlowSensitive::initialize()
 
     vPtD = getVersionedPTDataTy();
 
-    prelabel();
-    meldLabel();
-    mapMeldVersions();
+    if (Options::HashMeld)
+    {
+        PersistentPointsToCache<MeldVersion> cache((MeldVersion()));
+        hashConsedPrelabel(cache);
+        hashConsedMeldLabel(cache);
+        cache.reset();
+    }
+    else
+    {
+        prelabel();
+        meldLabel();
+        mapMeldVersions();
+    }
 
     determineReliance();
 }
@@ -141,6 +151,100 @@ void VersionedFlowSensitive::meldLabel(void) {
             }
 
             if (yieldChanged) vWorklist.push(lp);
+        }
+    }
+
+    double end = stat->getClk(true);
+    meldLabelingTime = (end - start) / TIMEINTERVAL;
+}
+
+void VersionedFlowSensitive::hashConsedPrelabel(PersistentPointsToCache<MeldVersion> &cache)
+{
+    double start = stat->getClk(true);
+
+    // A repeat of prelabel, but using hash-consed MeldVersions. We can use the IDs the
+    // cache assigns directly in consume/yield.
+    for (SVFG::iterator it = svfg->begin(); it != svfg->end(); ++it)
+    {
+        NodeID l = it->first;
+        const SVFGNode *ln = it->second;
+
+        if (const StoreSVFGNode *stn = SVFUtil::dyn_cast<StoreSVFGNode>(ln))
+        {
+            // l: *p = q.
+            NodeID p = stn->getPAGDstNodeID();
+            ObjToVersionMap &yl = yield[l];
+            for (NodeID o : ander->getPts(p)) yl[o] = cache.emplacePts(newMeldVersion(o));
+            vWorklist.push(l);
+
+            if (ander->getPts(p).count() != 0) ++numPrelabeledNodes;
+        }
+        else if (delta(l))
+        {
+            const MRSVFGNode *mr = SVFUtil::dyn_cast<MRSVFGNode>(ln);
+            if (mr != nullptr)
+            {
+                ObjToVersionMap &cl = consume[l];
+                for (const NodeID o : mr->getPointsTo()) cl[o] = cache.emplacePts(newMeldVersion(o));
+                vWorklist.push(l);
+
+                if (mr->getPointsTo().count() != 0) ++numPrelabeledNodes;
+            }
+        }
+    }
+
+    double end = stat->getClk(true);
+    prelabelingTime = (end - start) / TIMEINTERVAL;
+}
+
+void VersionedFlowSensitive::hashConsedMeldLabel(PersistentPointsToCache<MeldVersion> &cache)
+{
+    double start = stat->getClk(true);
+
+    // A repeat of meldLabel, but using hash-consed MeldVersions. We can use the IDs the
+    // cache assigns directly in consume/yield.
+    while (!vWorklist.empty()) {
+        NodeID l = vWorklist.pop();
+        const SVFGNode *ln = svfg->getSVFGNode(l);
+
+        for (const SVFGEdge *e : ln->getOutEdges()) {
+            const IndirectSVFGEdge *ie = SVFUtil::dyn_cast<IndirectSVFGEdge>(e);
+            if (!ie) continue;
+
+            NodeID lp = ie->getDstNode()->getId();
+            // Delta nodes had c set already and they are permanent.
+            if (delta(lp)) continue;
+
+            bool lpIsStore = SVFUtil::isa<StoreSVFGNode>(svfg->getSVFGNode(lp));
+            // Consume and yield are the same at non-stores, so ignore any self-loop
+            // at a non-store.
+            if (l == lp && !lpIsStore) continue;
+
+            // At stores yield != consume, otherwise they are the same (so just use meldConsume).
+            const ObjToVersionMap &yl = SVFUtil::isa<StoreSVFGNode>(ln) ? yield[l] : consume[l];
+            ObjToVersionMap &clp = consume[lp];
+            bool yieldChanged = false;
+            for (NodeID o : ie->getPointsTo()) {
+                ObjToVersionMap::const_iterator yloIt = yl.find(o);
+                if (yloIt == yl.end()) continue;
+
+                Version &consumedVersionLp = clp[o];
+                Version oldConsumedVersionLp = consumedVersionLp;
+                consumedVersionLp = cache.unionPts(consumedVersionLp, yloIt->second);
+                yieldChanged = ((oldConsumedVersionLp != consumedVersionLp) && !lpIsStore) || yieldChanged;
+            }
+
+            if (yieldChanged) vWorklist.push(lp);
+        }
+    }
+
+    // Where consumes == yield, explicitly set yields which we didn't for performance.
+    for (LocVersionMap::value_type &lov : consume)
+    {
+        NodeID l = lov.first;
+        if (!SVFUtil::isa<StoreSVFGNode>(svfg->getSVFGNode(l)))
+        {
+            for (const ObjToVersionMap::value_type &ov : lov.second) setYield(l, ov.first, ov.second);
         }
     }
 

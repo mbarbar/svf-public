@@ -199,6 +199,9 @@ public:
     // FlowSensitive.cpp
     static const llvm::cl::opt<bool> CTirAliasEval;
 
+    /// Whether to use hash consing for meld labelling.
+    static const llvm::cl::opt<bool> HashMeld;
+
     //FlowSensitiveTBHC.cpp
     static const llvm::cl::opt<bool> TBHCStoreReuse;
     static const llvm::cl::opt<bool> TBHCAllReuse;;

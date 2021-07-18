@@ -119,6 +119,15 @@ private:
     void prelabel(void);
     /// Meld label the prelabeled SVFG.
     void meldLabel(void);
+
+    /// Like prelabel(void), but with hash-consing. Works on consume/yield directly, no need
+    /// for meldConsume/meldYield.
+    void hashConsedPrelabel(PersistentPointsToCache<MeldVersion> &cache);
+    /// Like meldLabel(void), but with hash-consing. Works on consume/yield directly, no need
+    /// for meldConsume/meldYield. Thus, mapMeldVersions is also unnecessary.
+    /// Meld label the prelabeled SVFG.
+    void hashConsedMeldLabel(PersistentPointsToCache<MeldVersion> &cache);
+
     /// Melds v2 into v1 (in place), returns whether a change occurred.
     static bool meld(MeldVersion &mv1, const MeldVersion &mv2);
 
