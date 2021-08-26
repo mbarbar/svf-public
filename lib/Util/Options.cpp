@@ -461,9 +461,15 @@ namespace SVF
     
     // MTAResultValidator.cpp
     const llvm::cl::opt<bool> Options::PrintValidRes(
-        "print-mhp-validation", 
+        "mhp-validation", 
         llvm::cl::init(false), 
         llvm::cl::desc("Print MHP Validation Results")
+    );
+    // LockResultValidator.cpp
+    const llvm::cl::opt<bool> Options::LockValid(
+        "lock-validation", 
+        llvm::cl::init(false), 
+        llvm::cl::desc("Print Lock Validation Results")
     );
 
 
@@ -710,6 +716,4 @@ namespace SVF
             clEnumValN(WPAPass::Conservative, "conservative", "return MayAlias if any pta says alias"),
             clEnumValN(WPAPass::Veto, "veto", "return NoAlias if any pta says no alias")
         ));
-
-    
-}; // namespace SVF.
+} // namespace SVF.
