@@ -87,7 +87,6 @@ typedef unsigned Version;
 typedef llvm::SparseBitVector<> NodeBS;
 typedef NodeBS PointsTo;
 typedef PointsTo AliasSet;
-typedef unsigned PointsToID;
 
 template <typename Key, typename Hash = Hash<Key>, typename KeyEqual = std::equal_to<Key>,
           typename Allocator = std::allocator<Key>> 

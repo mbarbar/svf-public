@@ -47,6 +47,9 @@ void VersionedFlowSensitive::initialize()
         PersistentPointsToCache<MeldVersion> cache((MeldVersion()));
         hashConsedPrelabel(cache);
         hashConsedMeldLabel(cache);
+        cache.printStats("Hash Melding");
+        hashMeldConsume.clear();
+        hashMeldYield.clear();
         cache.reset();
     }
     else
@@ -173,7 +176,7 @@ void VersionedFlowSensitive::hashConsedPrelabel(PersistentPointsToCache<MeldVers
         {
             // l: *p = q.
             NodeID p = stn->getPAGDstNodeID();
-            ObjToVersionMap &yl = yield[l];
+            ObjToHashMeldVersionMap &yl = hashMeldYield[l];
             for (NodeID o : ander->getPts(p)) yl[o] = cache.emplacePts(newMeldVersion(o));
             vWorklist.push(l);
 
@@ -184,7 +187,7 @@ void VersionedFlowSensitive::hashConsedPrelabel(PersistentPointsToCache<MeldVers
             const MRSVFGNode *mr = SVFUtil::dyn_cast<MRSVFGNode>(ln);
             if (mr != nullptr)
             {
-                ObjToVersionMap &cl = consume[l];
+                ObjToHashMeldVersionMap &cl = hashMeldConsume[l];
                 for (const NodeID o : mr->getPointsTo()) cl[o] = cache.emplacePts(newMeldVersion(o));
                 vWorklist.push(l);
 
@@ -221,30 +224,58 @@ void VersionedFlowSensitive::hashConsedMeldLabel(PersistentPointsToCache<MeldVer
             if (l == lp && !lpIsStore) continue;
 
             // At stores yield != consume, otherwise they are the same (so just use meldConsume).
-            const ObjToVersionMap &yl = SVFUtil::isa<StoreSVFGNode>(ln) ? yield[l] : consume[l];
-            ObjToVersionMap &clp = consume[lp];
+            const ObjToHashMeldVersionMap &yl =
+                SVFUtil::isa<StoreSVFGNode>(ln) ? hashMeldYield[l] : hashMeldConsume[l];
+            ObjToHashMeldVersionMap &clp = hashMeldConsume[lp];
             bool yieldChanged = false;
             for (NodeID o : ie->getPointsTo()) {
-                ObjToVersionMap::const_iterator yloIt = yl.find(o);
+                ObjToHashMeldVersionMap::const_iterator yloIt = yl.find(o);
                 if (yloIt == yl.end()) continue;
 
-                Version &consumedVersionLp = clp[o];
-                Version oldConsumedVersionLp = consumedVersionLp;
-                consumedVersionLp = cache.unionPts(consumedVersionLp, yloIt->second);
-                yieldChanged = ((oldConsumedVersionLp != consumedVersionLp) && !lpIsStore) || yieldChanged;
+                // Grab clp[o], but create it if it doesn't exist.
+                const size_t clpSize = clp.size();
+                HashMeldVersion &consumedVersionLp = clp[o];
+                if (clp.size() > clpSize)
+                {
+                    consumedVersionLp = HashMeldVersion(cache.EmptyPointsToIndex, &cache);
+                }
+
+                PersistentPointsToCache<MeldVersion>::PointsToIndex oldConsumedVersionLpIndex = consumedVersionLp.getIndex();
+                consumedVersionLp = cache.unionPts(consumedVersionLp.getIndex(), yloIt->second.getIndex());
+                yieldChanged = ((oldConsumedVersionLpIndex != consumedVersionLp.getIndex()) && !lpIsStore) || yieldChanged;
             }
 
             if (yieldChanged) vWorklist.push(lp);
         }
     }
 
-    // Where consumes == yield, explicitly set yields which we didn't for performance.
-    for (LocVersionMap::value_type &lov : consume)
+    for (LocHashMeldVersionMap::value_type &lov : hashMeldConsume)
     {
         NodeID l = lov.first;
         if (!SVFUtil::isa<StoreSVFGNode>(svfg->getSVFGNode(l)))
         {
-            for (const ObjToVersionMap::value_type &ov : lov.second) setYield(l, ov.first, ov.second);
+            for (const ObjToHashMeldVersionMap::value_type &ov : lov.second)
+            {
+                // Where consumes == yield, explicitly set yields which we didn't for performance.
+                setYield(l, ov.first, ov.second.getIndex());
+                setConsume(l, ov.first, ov.second.getIndex());
+            }
+        }
+        else
+        {
+            for (const ObjToHashMeldVersionMap::value_type &ov : lov.second)
+            {
+                setConsume(l, ov.first, ov.second.getIndex());
+            }
+        }
+    }
+
+    for (LocHashMeldVersionMap::value_type &lov : hashMeldYield)
+    {
+        NodeID l = lov.first;
+        for (const ObjToHashMeldVersionMap::value_type &ov : lov.second)
+        {
+            setYield(l, ov.first, ov.second.getIndex());
         }
     }
 

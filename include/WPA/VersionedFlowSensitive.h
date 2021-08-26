@@ -11,6 +11,7 @@
 #define VFS_H_
 
 #include "Graphs/SVFGOPT.h"
+#include "MemoryModel/PersistentPointsToCache.h"
 #include "MSSA/SVFGBuilder.h"
 #include "WPA/FlowSensitive.h"
 #include "WPA/WPAFSSolver.h"
@@ -30,15 +31,18 @@ class VersionedFlowSensitive : public FlowSensitive
 
 private:
     typedef llvm::SparseBitVector<> MeldVersion;
+    typedef PointsToID<MeldVersion> HashMeldVersion;
 
 public:
     typedef Map<NodeID, Version> ObjToVersionMap;
     typedef Map<NodeID, MeldVersion> ObjToMeldVersionMap;
+    typedef Map<NodeID, HashMeldVersion> ObjToHashMeldVersionMap;
     typedef Map<VersionedVar, const DummyVersionPropSVFGNode *> VarToPropNodeMap;
 
     typedef Map<NodeID, ObjToVersionMap> LocVersionMap;
     /// Maps locations to all versions it sees (through objects).
     typedef Map<NodeID, ObjToMeldVersionMap> LocMeldVersionMap;
+    typedef Map<NodeID, ObjToHashMeldVersionMap> LocHashMeldVersionMap;
     /// (o -> (v -> versions with rely on o:v).
     typedef Map<NodeID, Map<Version, Set<Version>>> VersionRelianceMap;
 
@@ -198,6 +202,14 @@ private:
     /// Object -> MeldVersion counter. Used in the prelabeling phase to generate a
     /// new MeldVersion.
     Map<NodeID, unsigned> meldVersions;
+
+    /// Like meldConsume but for HashMeldVersions.
+    LocHashMeldVersionMap hashMeldConsume;
+    /// Like meldYield but for HashMeldVersions.
+    LocHashMeldVersionMap hashMeldYield;
+    /// Object -> HashMeldVersion counter. Used in the prelabeling phase to generate a
+    /// new HashMeldVersion.
+    Map<NodeID, unsigned> hashMeldVersions;
 
     /// Like meldConsume but with Versions, not MeldVersions.
     /// Created after meld labeling from meldConsume and used during the analysis.
