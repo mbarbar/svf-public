@@ -9,6 +9,7 @@
 
 #include "WPA/Andersen.h"
 #include "WPA/VersionedFlowSensitive.h"
+#include "Util/WorkList.h"
 #include <iostream>
 
 using namespace SVF;
@@ -76,7 +77,7 @@ void VersionedFlowSensitive::prelabel(void)
                 myl[o] = newMeldVersion(o);
             }
 
-            vWorklist.push(l);
+            prelabeledNodes.insert(l);
 
             if (ander->getPts(p).count() != 0) ++numPrelabeledNodes;
         }
@@ -96,7 +97,7 @@ void VersionedFlowSensitive::prelabel(void)
                 }
 
                 // Push into worklist because its consume == its yield.
-                vWorklist.push(l);
+                prelabeledNodes.insert(l);
                 if (mr->getPointsTo().count() != 0) ++numPrelabeledNodes;
             }
         }
@@ -109,8 +110,11 @@ void VersionedFlowSensitive::prelabel(void)
 void VersionedFlowSensitive::meldLabel(void) {
     double start = stat->getClk(true);
 
-    while (!vWorklist.empty()) {
-        NodeID l = vWorklist.pop();
+    FIFOWorkList<NodeID> worklist;
+    for (const NodeID l : prelabeledNodes) worklist.push(l);
+
+    while (!worklist.empty()) {
+        NodeID l = worklist.pop();
         const SVFGNode *ln = svfg->getSVFGNode(l);
 
         // Propagate l's y to lp's c for all l --o--> lp.
@@ -140,7 +144,7 @@ void VersionedFlowSensitive::meldLabel(void) {
                 yieldChanged = (meld(mclp[o], myloIt->second) && !lpIsStore) || yieldChanged;
             }
 
-            if (yieldChanged) vWorklist.push(lp);
+            if (yieldChanged) worklist.push(lp);
         }
     }
 

@@ -218,9 +218,8 @@ private:
     /// needs to be propagated.
     VarToPropNodeMap versionedVarToPropNode;
 
-    /// Worklist for performing meld labeling, takes SVFG node l.
-    /// Nodes are added when the version they yield is changed.
-    FIFOWorkList<NodeID> vWorklist;
+    /// Set of nodes prelabeled for versioning.
+    Set<NodeID> prelabeledNodes;
 
     /// Points-to DS for working with versions.
     BVDataPTAImpl::VersionedPTDataTy *vPtD;
