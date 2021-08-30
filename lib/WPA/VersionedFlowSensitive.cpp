@@ -107,6 +107,77 @@ void VersionedFlowSensitive::prelabel(void)
     prelabelingTime = (end - start) / TIMEINTERVAL;
 }
 
+void VersionedFlowSensitive::sccVisit(const NodeID v, std::vector<bool> &inComponent,
+                                      int &visitIndex, int &sccIndex, std::stack<NodeID> &s)
+{
+    bool root = true;
+    sccOf[v] = visitIndex;
+    ++visitIndex;
+    inComponent[v] = false;
+
+    const SVFGNode *vn = svfg->getSVFGNode(v);
+    // If v is a store node, it's not part of an SCC for our purposes because it
+    // does not propagate what is propagated to it; just the prelabeled thing.
+    if (!SVFUtil::isa<StoreSVFGNode>(vn))
+    {
+        for (const SVFGEdge *e : vn->getOutEdges())
+        {
+            const IndirectSVFGEdge *ie = SVFUtil::dyn_cast<IndirectSVFGEdge>(e);
+            if (!ie) continue;
+
+            const NodeID w = ie->getDstNode()->getId();
+
+            // For our purposes, edges to delta nodes don't count: nothing gets
+            // propagated along them in the versioning phase.
+            if (delta(w)) continue;
+
+            if (sccOf[w] == -1) sccVisit(w, inComponent, visitIndex, sccIndex, s);
+
+            if (!inComponent[w] && sccOf[w] < sccOf[v])
+            {
+                sccOf[v] = sccOf[w];
+                root = false;
+            }
+        }
+    }
+
+    if (root)
+    {
+        inComponent[v] = true;
+        while (!s.empty() && sccOf[v] <= sccOf[s.top()])
+        {
+            const NodeID w = s.top();
+            s.pop();
+            sccOf[w] = sccIndex;
+            inComponent[w] = true;
+        }
+
+        sccOf[v] = sccIndex;
+        sccIndex++;
+    }
+    else
+    {
+        s.push(v);
+    }
+}
+
+void VersionedFlowSensitive::findSccs(void)
+{
+    sccOf = std::vector<int>(svfg->getTotalNodeNum(), -1);
+    // TODO: False???
+    std::vector<bool> inComponent = std::vector<bool>(svfg->getTotalNodeNum(), false);
+    // TODO: this can be avoided -- probably doesn't matter?
+    std::vector<bool> visited = std::vector<bool>(svfg->getTotalNodeNum(), false);
+    int visitIndex = 0;
+    int sccIndex = 0;
+    std::stack<NodeID> s;
+
+    for (const NodeID v : prelabeledNodes)
+    {
+        if (sccOf[v] == -1) sccVisit(v, inComponent, visitIndex, sccIndex, s);
+    }
+}
+
 void VersionedFlowSensitive::meldLabel(void) {
     double start = stat->getClk(true);
 

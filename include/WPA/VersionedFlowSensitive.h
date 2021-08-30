@@ -177,6 +177,13 @@ private:
     /// Dumps maps consume and yield.
     void dumpLocVersionMaps(void) const;
 
+    /// Fills sccOf, determining which SCCs SVFG nodes are part of.
+    void findSccs(void);
+
+    /// Recursively called by findSccs.
+    void sccVisit(const NodeID v, std::vector<bool> &inComponent,
+                  int &visitIndex, int &sccIndex, std::stack<NodeID> &s);
+
     /// Dumps a MeldVersion to stdout.
     static void dumpMeldVersion(MeldVersion &v);
 
@@ -223,6 +230,9 @@ private:
 
     /// Points-to DS for working with versions.
     BVDataPTAImpl::VersionedPTDataTy *vPtD;
+
+    /// Maps SVFG nodes to the SCC which they are part of.
+    std::vector<int> sccOf;
 
     /// Additional statistics.
     //@{
