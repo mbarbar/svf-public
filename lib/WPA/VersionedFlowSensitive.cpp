@@ -44,7 +44,7 @@ void VersionedFlowSensitive::initialize()
 
     if (Options::HashMeld)
     {
-        PersistentPointsToCache<MeldVersion> cache((MeldVersion()));
+        PersistentPointsToCache<MeldVersion> cache((MeldVersion()), false);
         hashConsedPrelabel(cache);
         hashConsedMeldLabel(cache);
         cache.printStats("Hash Melding");

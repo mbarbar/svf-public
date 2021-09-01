@@ -171,7 +171,8 @@ private:
     typedef Map<Data, PointsToIndex> PointsToSetToIndex;
 
 public:
-    PersistentPointsToCache(const Data &emptyData) : firstFreeIndex(1)
+    PersistentPointsToCache(const Data &emptyData, bool preemptiveMemoisation=true)
+        : firstFreeIndex(1), preemptiveMemoisation(preemptiveMemoisation)
     {
         pointsToSets.push_back({ emptyData, 0, 0 });
         pointsToSetToIndex[emptyData] = 0;
@@ -259,29 +260,32 @@ public:
         {
             ++uniqueUnions;
 
-            // We can use lhs/rhs here rather than our ordered operands,
-            // because the operation is commutative.
-
-            // if x U y = z, then x U z = z,
-            if (lhs != result)
+            if (preemptiveMemoisation)
             {
-                unionCache[std::minmax(lhs, result)] =
-                    { .result = result, .resultGeneration = pointsToSets[result].generation,
-                      .lhsGeneration = pointsToSets[std::min(lhs, result)].generation,
-                      .rhsGeneration = pointsToSets[std::max(lhs, result)].generation };
-                ++propertyUnions;
-                ++totalUnions;
-            }
+                // We can use lhs/rhs here rather than our ordered operands,
+                // because the operation is commutative.
 
-            // and y U z = z.
-            if (rhs != result)
-            {
-                unionCache[std::minmax(rhs, result)] =
-                    { .result = result, .resultGeneration = pointsToSets[result].generation,
-                      .lhsGeneration = pointsToSets[std::min(rhs, result)].generation,
-                      .rhsGeneration = pointsToSets[std::max(rhs, result)].generation };;
-                ++propertyUnions;
-                ++totalUnions;
+                // if x U y = z, then x U z = z,
+                if (lhs != result)
+                {
+                    unionCache[std::minmax(lhs, result)] =
+                        { .result = result, .resultGeneration = pointsToSets[result].generation,
+                          .lhsGeneration = pointsToSets[std::min(lhs, result)].generation,
+                          .rhsGeneration = pointsToSets[std::max(lhs, result)].generation };
+                    ++propertyUnions;
+                    ++totalUnions;
+                }
+
+                // and y U z = z.
+                if (rhs != result)
+                {
+                    unionCache[std::minmax(rhs, result)] =
+                        { .result = result, .resultGeneration = pointsToSets[result].generation,
+                          .lhsGeneration = pointsToSets[std::min(rhs, result)].generation,
+                          .rhsGeneration = pointsToSets[std::max(rhs, result)].generation };;
+                    ++propertyUnions;
+                    ++totalUnions;
+                }
             }
         } else ++lookupUnions;
 
@@ -318,53 +322,56 @@ public:
         {
             ++uniqueIntersections;
 
-            // When the result is empty, we won't be adding anything of substance.
-            if (result != EmptyPointsToIndex)
+            if (preemptiveMemoisation)
             {
-                // We performed lhs AND rhs = result, so...
-                // result AND rhs = result,
-                if (result != rhs)
+                // When the result is empty, we won't be adding anything of substance.
+                if (result != EmptyPointsToIndex)
                 {
-                    intersectionCache[std::minmax(rhs, result)] =
-                        { .result = result, .resultGeneration = pointsToSets[result].generation,
-                          .lhsGeneration = pointsToSets[std::min(rhs, result)].generation,
-                          .rhsGeneration = pointsToSets[std::max(rhs, result)].generation };
-                    ++propertyIntersections;
-                    ++totalIntersections;
-                }
+                    // We performed lhs AND rhs = result, so...
+                    // result AND rhs = result,
+                    if (result != rhs)
+                    {
+                        intersectionCache[std::minmax(rhs, result)] =
+                            { .result = result, .resultGeneration = pointsToSets[result].generation,
+                              .lhsGeneration = pointsToSets[std::min(rhs, result)].generation,
+                              .rhsGeneration = pointsToSets[std::max(rhs, result)].generation };
+                        ++propertyIntersections;
+                        ++totalIntersections;
+                    }
 
-                // and result AND lhs = result,
-                if (result != lhs)
-                {
-                    intersectionCache[std::minmax(lhs, result)] =
-                        { .result = result, .resultGeneration = pointsToSets[result].generation,
-                          .lhsGeneration = pointsToSets[std::min(lhs, result)].generation,
-                          .rhsGeneration = pointsToSets[std::max(lhs, result)].generation };
-                    ++propertyIntersections;
-                    ++totalIntersections;
-                }
+                    // and result AND lhs = result,
+                    if (result != lhs)
+                    {
+                        intersectionCache[std::minmax(lhs, result)] =
+                            { .result = result, .resultGeneration = pointsToSets[result].generation,
+                              .lhsGeneration = pointsToSets[std::min(lhs, result)].generation,
+                              .rhsGeneration = pointsToSets[std::max(lhs, result)].generation };
+                        ++propertyIntersections;
+                        ++totalIntersections;
+                    }
 
-                // Also (thanks reviewer #2)
-                // result U lhs = result,
-                if (result != EmptyPointsToIndex && result != lhs)
-                {
-                    unionCache[std::minmax(lhs, result)] =
-                        { .result = lhs, .resultGeneration = pointsToSets[lhs].generation,
-                          .lhsGeneration = pointsToSets[std::min(lhs, result)].generation,
-                          .rhsGeneration = pointsToSets[std::max(lhs, result)].generation };;
-                    ++propertyUnions;
-                    ++totalUnions;
-                }
+                    // Also (thanks reviewer #2)
+                    // result U lhs = result,
+                    if (result != EmptyPointsToIndex && result != lhs)
+                    {
+                        unionCache[std::minmax(lhs, result)] =
+                            { .result = lhs, .resultGeneration = pointsToSets[lhs].generation,
+                              .lhsGeneration = pointsToSets[std::min(lhs, result)].generation,
+                              .rhsGeneration = pointsToSets[std::max(lhs, result)].generation };;
+                        ++propertyUnions;
+                        ++totalUnions;
+                    }
 
-                // And result U rhs = rhs.
-                if (result != EmptyPointsToIndex && result != rhs)
-                {
-                    unionCache[std::minmax(rhs, result)] =
-                        { .result = rhs, .resultGeneration = pointsToSets[rhs].generation,
-                          .lhsGeneration = pointsToSets[std::min(rhs, result)].generation,
-                          .rhsGeneration = pointsToSets[std::max(rhs, result)].generation };;
-                    ++propertyUnions;
-                    ++totalUnions;
+                    // And result U rhs = rhs.
+                    if (result != EmptyPointsToIndex && result != rhs)
+                    {
+                        unionCache[std::minmax(rhs, result)] =
+                            { .result = rhs, .resultGeneration = pointsToSets[rhs].generation,
+                              .lhsGeneration = pointsToSets[std::min(rhs, result)].generation,
+                              .rhsGeneration = pointsToSets[std::max(rhs, result)].generation };;
+                        ++propertyUnions;
+                        ++totalUnions;
+                    }
                 }
             }
         } else ++lookupIntersections;
@@ -408,32 +415,35 @@ public:
         {
             ++uniqueComplements;
 
-            // We performed lhs - rhs = result, so...
-            if (result != EmptyPointsToIndex)
+            if (preemptiveMemoisation)
             {
-                // result AND rhs = EMPTY_SET,
-                intersectionCache[std::minmax(result, rhs)] =
-                    { .result = EmptyPointsToIndex, .resultGeneration = 0,
-                      .lhsGeneration = pointsToSets[std::min(result, rhs)].generation,
-                      .rhsGeneration = pointsToSets[std::max(result, rhs)].generation };
-                ++propertyIntersections;
-                ++totalIntersections;
+                // We performed lhs - rhs = result, so...
+                if (result != EmptyPointsToIndex)
+                {
+                    // result AND rhs = EMPTY_SET,
+                    intersectionCache[std::minmax(result, rhs)] =
+                        { .result = EmptyPointsToIndex, .resultGeneration = 0,
+                          .lhsGeneration = pointsToSets[std::min(result, rhs)].generation,
+                          .rhsGeneration = pointsToSets[std::max(result, rhs)].generation };
+                    ++propertyIntersections;
+                    ++totalIntersections;
 
-                // and result AND lhs = result,
-                intersectionCache[std::minmax(result, lhs)] =
-                    { .result = lhs, .resultGeneration = pointsToSets[lhs].generation,
-                      .lhsGeneration = pointsToSets[std::min(result, lhs)].generation,
-                      .rhsGeneration = pointsToSets[std::max(result, lhs)].generation };
-                ++propertyIntersections;
-                ++totalIntersections;
+                    // and result AND lhs = result,
+                    intersectionCache[std::minmax(result, lhs)] =
+                        { .result = lhs, .resultGeneration = pointsToSets[lhs].generation,
+                          .lhsGeneration = pointsToSets[std::min(result, lhs)].generation,
+                          .rhsGeneration = pointsToSets[std::max(result, lhs)].generation };
+                    ++propertyIntersections;
+                    ++totalIntersections;
 
-                // and result - rhs = result.
-                complementCache[std::make_pair(result, rhs)] =
-                    { .result = result, .resultGeneration = pointsToSets[result].generation,
-                      .lhsGeneration = pointsToSets[result].generation,
-                      .rhsGeneration = pointsToSets[rhs].generation };
-                ++propertyComplements;
-                ++totalComplements;
+                    // and result - rhs = result.
+                    complementCache[std::make_pair(result, rhs)] =
+                        { .result = result, .resultGeneration = pointsToSets[result].generation,
+                          .lhsGeneration = pointsToSets[result].generation,
+                          .rhsGeneration = pointsToSets[rhs].generation };
+                    ++propertyComplements;
+                    ++totalComplements;
+                }
             }
         } else ++lookupComplements;
 
@@ -567,6 +577,9 @@ public:
     static const PointsToIndex EmptyPointsToIndex;
 
 private:
+    /// Whether to preemptively memoise or not.
+    bool preemptiveMemoisation;
+
     /// Where unique points-to sets are stored. Indexed by an (unsigned) integer.
     /// Index is the ID number of what is stored at that index.
     std::vector<SharedData> pointsToSets;
