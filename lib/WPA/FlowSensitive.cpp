@@ -135,12 +135,13 @@ void FlowSensitive::analyze()
         printCTirAliasStats();
     }
 
-    const double fullStop = PTAStat::getClk(true);
-    thesisPrint("time::fs-full", fullStart, fullStop);
     thesisPrint("time::fs-main", mainStart, mainStop);
 
     /// finalize the analysis
     finalize();
+
+    const double fullStop = PTAStat::getClk(true);
+    thesisPrint("time::fs-full", fullStart, fullStop);
 }
 
 /*!
