@@ -52,12 +52,17 @@ void FlowSensitive::initialize()
     stat = new FlowSensitiveStat(this);
 
     // TODO: support clustered aux. Andersen's.
+    const double anderStart = PTAStat::getClk(true);
     assert(!Options::ClusterAnder && "FlowSensitive::initialize: clustering auxiliary Andersen's unsupported.");
     ander = AndersenWaveDiff::createAndersenWaveDiff(getPAG());
+    const double anderStop = PTAStat::getClk(true);
+    thesisPrint("time::fs-ander", anderStart, anderStop);
 
     // If cluster option is not set, it will give us a no-mapping points-to set.
     assert(!(Options::ClusterFs && Options::PlainMappingFs)
            && "FS::init: plain-mapping and cluster-fs are mutually exclusive.");
+
+    const double clusterStart = PTAStat::getClk(true);
     if (Options::ClusterFs)
     {
         cluster();
@@ -71,6 +76,8 @@ void FlowSensitive::initialize()
         // As above.
         getPtCache().reset();
     }
+    const double clusterStop = PTAStat::getClk(true);
+    thesisPrint("time::fs-cluster", clusterStart, clusterStop);
 
     // When evaluating ctir aliases, we want the whole SVFG.
     if(Options::OPTSVFG)
@@ -87,6 +94,7 @@ void FlowSensitive::initialize()
  */
 void FlowSensitive::analyze()
 {
+    const double fullStart = PTAStat::getClk(true);
     bool limitTimerSet = SVFUtil::startAnalysisLimitTimer(Options::FsTimeLimit);
 
     /// Initialization for the Solver
@@ -95,6 +103,8 @@ void FlowSensitive::analyze()
     double start = stat->getClk(true);
     /// Start solving constraints
     DBOUT(DGENERAL, outs() << SVFUtil::pasMsg("Start Solving Constraints\n"));
+
+    const double mainStart = PTAStat::getClk(true);
 
     do
     {
@@ -115,6 +125,8 @@ void FlowSensitive::analyze()
     // Reset the time-up alarm; analysis is done.
     SVFUtil::stopAnalysisLimitTimer(limitTimerSet);
 
+    const double mainStop = PTAStat::getClk(true);
+
     double end = stat->getClk(true);
     solveTime += (end - start) / TIMEINTERVAL;
 
@@ -122,6 +134,10 @@ void FlowSensitive::analyze()
     {
         printCTirAliasStats();
     }
+
+    const double fullStop = PTAStat::getClk(true);
+    thesisPrint("time::fs-full", fullStart, fullStop);
+    thesisPrint("time::fs-main", mainStart, mainStop);
 
     /// finalize the analysis
     finalize();

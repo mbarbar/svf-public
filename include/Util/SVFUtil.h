@@ -35,6 +35,7 @@
 #include "Util/BasicTypes.h"
 #include "MemoryModel/PointsTo.h"
 #include <time.h>
+#include <iostream>
 
 namespace SVF
 {
@@ -327,6 +328,21 @@ bool startAnalysisLimitTimer(unsigned timeLimit);
 /// Stops an analysis timer. limitTimerSet indicates whether the caller set the
 /// timer or not (return value of startLimitTimer).
 void stopAnalysisLimitTimer(bool limitTimerSet);
+
+inline void thesisPrint(const std::string &ns, const double start, const double stop)
+{
+    std::cout.flush();
+    SVFUtil::outs() << "thesis::" << ns << ":     " << (stop - start) / TIMEINTERVAL << "\n";
+    SVFUtil::outs().flush();
+}
+
+template <typename V>
+inline void thesisPrint(const std::string &ns, const V &value)
+{
+    std::cout.flush();
+    SVFUtil::outs() << "thesis::" << ns << ":     " << value << "\n";
+    SVFUtil::outs().flush();
+}
 
 } // End namespace SVFUtil
 

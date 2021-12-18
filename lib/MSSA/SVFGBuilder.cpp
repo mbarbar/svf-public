@@ -77,8 +77,12 @@ void SVFGBuilder::buildSVFG()
 SVFG* SVFGBuilder::build(BVDataPTAImpl* pta, VFG::VFGK kind)
 {
 
+    const double mssaStart = PTAStat::getClk(true);
     MemSSA* mssa = buildMSSA(pta, (VFG::PTRONLYSVFG==kind || VFG::PTRONLYSVFG_OPT==kind));
+    const double mssaStop = PTAStat::getClk(true);
+    thesisPrint("time::mssa", mssaStart, mssaStop);
 
+    const double svfgStart = PTAStat::getClk(true);
     DBOUT(DGENERAL, outs() << pasMsg("Build Sparse Value-Flow Graph \n"));
     if(Options::SingleVFG)
     {
@@ -107,6 +111,9 @@ SVFG* SVFGBuilder::build(BVDataPTAImpl* pta, VFG::VFGK kind)
 
     if(Options::DumpVFG)
         svfg->dump("svfg_final");
+
+    const double svfgStop = PTAStat::getClk(true);
+    thesisPrint("time::svfg", svfgStart, svfgStop);
 
     return svfg;
 }
