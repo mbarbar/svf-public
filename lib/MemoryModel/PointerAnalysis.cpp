@@ -117,6 +117,7 @@ void PointerAnalysis::initialize()
 {
 	assert(pag && "PAG has not been built!");
 	if (chgraph == nullptr) {
+    const double classHiStart = PTAStat::getClk(true);
 		if (LLVMModuleSet::getLLVMModuleSet()->allCTir()) {
 			DCHGraph *dchg = new DCHGraph(pag->getModule());
 			// TODO: we might want to have an option for extending.
@@ -127,6 +128,8 @@ void PointerAnalysis::initialize()
 			chg->buildCHG();
 			chgraph = chg;
 		}
+    const double classHiStop = PTAStat::getClk(true);
+    SVFUtil::thesisPrint("time::class-hierarchy", classHiStart, classHiStop);
 	}
 
     svfMod = pag->getModule();
@@ -144,6 +147,7 @@ void PointerAnalysis::initialize()
         pag->print();
 
     /// initialise pta call graph for every pointer analysis instance
+    const double callGraphStart = PTAStat::getClk(true);
     if(Options::EnableThreadCallGraph)
     {
         ThreadCallGraph* cg = new ThreadCallGraph();
@@ -157,6 +161,8 @@ void PointerAnalysis::initialize()
         ptaCallGraph = bd.buildCallGraph(pag->getModule());
     }
     callGraphSCCDetection();
+    const double callGraphStop = PTAStat::getClk(true);
+    SVFUtil::thesisPrint("time::call-graph", callGraphStart, callGraphStop);
 
     // dump callgraph
 	if (Options::CallGraphDotGraph)

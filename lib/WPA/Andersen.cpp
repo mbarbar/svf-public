@@ -66,7 +66,10 @@ void AndersenBase::initialize()
     /// Build PAG
     PointerAnalysis::initialize();
     /// Build Constraint Graph
+    const double constraintGraphStart = PTAStat::getClk(true);
     consCG = new ConstraintGraph(pag);
+    const double constraintGraphStop = PTAStat::getClk(true);
+    SVFUtil::thesisPrint("time::constraint-graph", constraintGraphStart, constraintGraphStop);
     setGraph(consCG);
     /// Create statistic class
     stat = new AndersenStat(this);
@@ -87,6 +90,21 @@ void AndersenBase::finalize()
 	if (Options::PrintCGGraph)
 		consCG->print();
     BVDataPTAImpl::finalize();
+
+    unsigned tlVariables = 0;
+    unsigned atVariables = 0;
+    unsigned edges = 0;
+    for (PAG::const_iterator it = pag->begin(); it != pag->end(); ++it)
+    {
+        const PAGNode *pn = it->second;
+        if (SVFUtil::isa<ObjPN>(pn)) ++atVariables;
+        if (pag->isValidTopLevelPtr(pn)) ++tlVariables;
+        edges += pn->getOutEdges().size();
+    }
+
+    thesisPrint("pag::edges", edges);
+    thesisPrint("pag::top-level-variables", tlVariables);
+    thesisPrint("pag::address-taken-variables", atVariables);
 }
 
 /*!

@@ -98,8 +98,12 @@ bool WPAPass::runOnModule(Module& module)
 void WPAPass::runPointerAnalysis(SVFModule* svfModule, u32_t kind)
 {
 	/// Build PAG
+    const double pagStart = PTAStat::getClk(true);
 	PAGBuilder builder;
 	PAG* pag = builder.build(svfModule);
+    const double pagStop = PTAStat::getClk(true);
+    SVFUtil::thesisPrint("time::pag", pagStart, pagStop);
+
     /// Initialize pointer analysis.
     switch (kind)
     {
