@@ -379,6 +379,11 @@ namespace SVF
         overallStats[BestCandidate] = SVFUtil::hclustMethodToString(bestMapping.first);
         printStats(evalSubtitle + ": overall", overallStats);
 
+        SVFUtil::thesisPrint("cluster::overall::non-trivial-regions-objects", overallStats[NumNonTrivialRegionObjects]);
+        SVFUtil::thesisPrint("cluster::overall::non-trivial-regions", overallStats[NumGtIntRegions]);
+        SVFUtil::thesisPrint("cluster::overall::largest-region", overallStats[LargestRegion]);
+        SVFUtil::thesisPrint("cluster::overall::regions", overallStats[NumRegions]);
+
         return bestMapping.second;
     }
 
@@ -669,8 +674,21 @@ namespace SVF
                     bestWords = candidateWords;
                     bestMapping = candidate;
                 }
+
+                SVFUtil::thesisPrint("cluster::" + evalSubtitle + "::" + candidateMethodName + "::theoretical",
+                        candidateStats[TheoreticalNumWords]);
+                SVFUtil::thesisPrint("cluster::" + evalSubtitle + "::" + candidateMethodName + "::sbv::original",
+                        candidateStats[OriginalSbvNumWords]);
+                SVFUtil::thesisPrint("cluster::" + evalSubtitle + "::" + candidateMethodName + "::sbv::clustered",
+                        candidateStats[NewSbvNumWords]);
+                SVFUtil::thesisPrint("cluster::" + evalSubtitle + "::" + candidateMethodName + "::cbv::original",
+                        candidateStats[OriginalBvNumWords]);
+                SVFUtil::thesisPrint("cluster::" + evalSubtitle + "::" + candidateMethodName + "::cbv::clustered",
+                        candidateStats[NewBvNumWords]);
             }
         }
+
+        SVFUtil::thesisPrint("cluster::" + evalSubtitle + "::best", SVFUtil::hclustMethodToString(bestMapping.first));
 
         return bestMapping;
     }
