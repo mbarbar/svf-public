@@ -331,17 +331,17 @@ void stopAnalysisLimitTimer(bool limitTimerSet);
 
 inline void thesisPrint(const std::string &ns, const double start, const double stop)
 {
-    std::cout.flush();
-    SVFUtil::outs() << "thesis::" << ns << ":     " << (stop - start) / TIMEINTERVAL << "\n";
     SVFUtil::outs().flush();
+    std::cout << std::fixed << "thesis::" << ns << ":     " << (stop - start) / TIMEINTERVAL << "\n";
+    std::cout.flush();
 }
 
 template <typename V>
 inline void thesisPrint(const std::string &ns, const V &value)
 {
-    std::cout.flush();
-    SVFUtil::outs() << "thesis::" << ns << ":     " << value << "\n";
     SVFUtil::outs().flush();
+    std::cout << std::fixed << "thesis::" << ns << ":     " << value << "\n";
+    std::cout.flush();
 }
 
 } // End namespace SVFUtil
