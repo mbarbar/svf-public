@@ -674,17 +674,6 @@ namespace SVF
                     bestWords = candidateWords;
                     bestMapping = candidate;
                 }
-
-                SVFUtil::thesisPrint("cluster::" + evalSubtitle + "::" + candidateMethodName + "::theoretical",
-                        candidateStats[TheoreticalNumWords]);
-                SVFUtil::thesisPrint("cluster::" + evalSubtitle + "::" + candidateMethodName + "::sbv::original",
-                        candidateStats[OriginalSbvNumWords]);
-                SVFUtil::thesisPrint("cluster::" + evalSubtitle + "::" + candidateMethodName + "::sbv::clustered",
-                        candidateStats[NewSbvNumWords]);
-                SVFUtil::thesisPrint("cluster::" + evalSubtitle + "::" + candidateMethodName + "::cbv::original",
-                        candidateStats[OriginalBvNumWords]);
-                SVFUtil::thesisPrint("cluster::" + evalSubtitle + "::" + candidateMethodName + "::cbv::clustered",
-                        candidateStats[NewBvNumWords]);
             }
         }
 
@@ -716,6 +705,12 @@ namespace SVF
         }
 
         std::cout.flush();
+
+        SVFUtil::thesisPrint("cluster::" + subtitle + "::theoretical", stats[TheoreticalNumWords]);
+        SVFUtil::thesisPrint("cluster::" + subtitle + "::sbv::original", stats[OriginalSbvNumWords]);
+        SVFUtil::thesisPrint("cluster::" + subtitle + "::sbv::clustered", stats[NewSbvNumWords]);
+        SVFUtil::thesisPrint("cluster::" + subtitle + "::cbv::original", stats[OriginalBvNumWords]);
+        SVFUtil::thesisPrint("cluster::" + subtitle + "::cbv::clustered", stats[NewBvNumWords]);
     }
 
 };  // namespace SVF.
