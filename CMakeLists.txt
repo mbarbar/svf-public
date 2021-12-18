@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13.4)
+cmake_minimum_required(VERSION 3.10.2)
 
 project("SVF")
 
@@ -23,8 +23,8 @@ if(NOT COMMAND add_llvm_library)
             set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS} -O0 -fno-rtti")
             set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_FLAGS} -O0")
         else()
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS} -O3 -fno-rtti")
-            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_FLAGS} -O3")
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS} -march=native -fopenmp -O3 -fno-rtti")
+            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_FLAGS} -march=native -fopenmp -O3")
         endif()
 
         find_package(LLVM REQUIRED CONFIG)
