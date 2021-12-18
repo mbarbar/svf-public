@@ -315,6 +315,16 @@ public:
         std::cout << std::setw(fieldWidth) << "PreemptiveIntersections" << preemptiveIntersections << "\n";
 
         std::cout.flush();
+
+        if (subtitle == "ander" || subtitle == "fs")
+        {
+            SVFUtil::thesisPrint("hashcons::" + subtitle + "::unique-pts", idToPts.size());
+            SVFUtil::thesisPrint("hashcons::" + subtitle + "::total-unions", totalUnions);
+            SVFUtil::thesisPrint("hashcons::" + subtitle + "::property-unions", propertyUnions);
+            SVFUtil::thesisPrint("hashcons::" + subtitle + "::lookup-unions", lookupUnions);
+            SVFUtil::thesisPrint("hashcons::" + subtitle + "::preemptive-unions", preemptiveUnions);
+            SVFUtil::thesisPrint("hashcons::" + subtitle + "::concrete-unions", uniqueUnions);
+        }
     }
 
     /// Returns all points-to sets stored by this cache as keys to a map.

@@ -148,6 +148,7 @@ void FlowSensitive::analyze()
  */
 void FlowSensitive::finalize()
 {
+    getPtCache().printStats("fs");
 	if(Options::DumpVFG)
 		svfg->dump("fs_solved", true);
 

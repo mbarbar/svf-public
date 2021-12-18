@@ -79,6 +79,7 @@ void AndersenBase::initialize()
  */
 void AndersenBase::finalize()
 {
+    getPtCache().printStats("ander");
     /// dump constraint graph if PAGDotGraph flag is enabled
 	if (Options::ConsCGDotGraph)
 		consCG->dump("consCG_final");
