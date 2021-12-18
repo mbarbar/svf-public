@@ -186,7 +186,7 @@ void FlowSensitive::finalize()
         }
     }
 
-    PointerAnalysis::finalize();
+    BVDataPTAImpl::finalize();
 }
 
 /*!
