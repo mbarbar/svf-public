@@ -112,6 +112,34 @@ SVFG* SVFGBuilder::build(BVDataPTAImpl* pta, VFG::VFGK kind)
     if(Options::DumpVFG)
         svfg->dump("svfg_final");
 
+    unsigned nodes = 0;
+    unsigned indirectEdges = 0;
+    unsigned indirectEdgesLabels = 0;
+    unsigned directEdges = 0;
+    for (SVFG::const_iterator it = svfg->begin(); it != svfg->end(); ++it)
+    {
+        ++nodes;
+        const SVFGNode *sn = it->second;
+        for (const SVFGEdge *e : sn->getOutEdges())
+        {
+            const IndirectSVFGEdge *ie = SVFUtil::dyn_cast<IndirectSVFGEdge>(e);
+            if (ie)
+            {
+                ++indirectEdges;
+                indirectEdgesLabels += ie->getPointsTo().count();
+            }
+            else
+            {
+                ++directEdges;
+            }
+        }
+    }
+
+    thesisPrint("svfg::nodes", nodes);
+    thesisPrint("svfg::indirect-edges-condensed", indirectEdges);
+    thesisPrint("svfg::indirect-edges-actual", indirectEdgesLabels);
+    thesisPrint("svfg::direct-edges", directEdges);
+
     const double svfgStop = PTAStat::getClk(true);
     thesisPrint("time::svfg", svfgStart, svfgStop);
 
