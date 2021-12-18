@@ -51,6 +51,8 @@ void VersionedFlowSensitive::initialize()
 
     vPtD = getVersionedPTDataTy();
 
+    const double versionStart = PTAStat::getClk(true);
+
     buildIsStoreLoadMaps();
     buildDeltaMaps();
     consume.resize(svfg->getTotalNodeNum());
@@ -60,6 +62,9 @@ void VersionedFlowSensitive::initialize()
     meldLabel();
 
     removeAllIndirectSVFGEdges();
+
+    const double versionStop = PTAStat::getClk(true);
+    SVFUtil::thesisPrint("time::versioning", versionStart, versionStop);
 }
 
 void VersionedFlowSensitive::finalize()
