@@ -94,6 +94,7 @@ void AndersenBase::finalize()
  */
 void AndersenBase::analyze()
 {
+    const double anderStart = PTAStat::getClk(true);
     /// Initialization for the Solver
     initialize();
 
@@ -139,6 +140,9 @@ void AndersenBase::analyze()
 
     if (!Options::WriteAnder.empty())
         this->writeToFile(Options::WriteAnder);
+
+    const double anderStop = PTAStat::getClk(true);
+    thesisPrint("time::full-ander", anderStart, anderStop);
 }
 
 void AndersenBase::cleanConsCG(NodeID id) {
