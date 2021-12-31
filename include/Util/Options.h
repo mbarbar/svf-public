@@ -20,6 +20,8 @@ class Options
 public:
     Options(void) = delete;
 
+    static const llvm::cl::opt<bool> Top5;
+
     static const llvm::cl::opt<enum PTAStat::ClockType> ClockType;
 
     /// If set, only return the clock when getClk is called as getClk(true).

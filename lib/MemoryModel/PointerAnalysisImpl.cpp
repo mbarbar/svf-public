@@ -74,6 +74,39 @@ void BVDataPTAImpl::finalize()
     normalizePointsTo();
     PointerAnalysis::finalize();
     if (Options::ptDataBacking == PTBackingType::Persistent && Options::PStat) ptCache.printStats("bv-finalize");
+
+    if (Options::Top5)
+    {
+        std::vector<std::pair<PointsTo, unsigned>> ptCounts;
+        for (const std::pair<PointsTo, unsigned> &ptc : getPTDataTy()->getAllPts(true)) ptCounts.push_back(ptc);
+        auto cmp = [](const std::pair<PointsTo, unsigned> &a, const std::pair<PointsTo, unsigned> &b)
+        {
+            return a.second > b.second;
+        };
+
+        std::sort(ptCounts.begin(), ptCounts.end(), cmp);
+
+        size_t topNth = 0;
+        size_t numTop5 = 0;
+        size_t numPts = 0;
+        for (size_t i = 0; i < ptCounts.size(); ++i)
+        {
+            if (ptCounts[i].first.empty()) continue;
+            if (topNth < 5)
+            {
+                numTop5 += ptCounts[i].second;
+                ++topNth;
+            }
+
+            numPts += ptCounts[i].second;
+        }
+
+        std::string analysis = "";
+        if (PTAName() == "AndersenWPA") analysis = "ander";
+        else if (PTAName() == "VersionedFlowSensitive") analysis = "vfspta";
+        SVFUtil::thesisPrint(analysis + "::points-to-sets", numPts);
+        SVFUtil::thesisPrint(analysis + "::top5", numTop5);
+    }
 }
 
 /*!

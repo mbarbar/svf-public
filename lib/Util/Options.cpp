@@ -5,6 +5,12 @@
 
 namespace SVF
 {
+    const llvm::cl::opt<bool> Options::Top5(
+        "top-5",
+        llvm::cl::init(false),
+        llvm::cl::desc("top 5 most common points-to sets")
+    );
+
     const llvm::cl::opt<enum PTAStat::ClockType> Options::ClockType(
         "clock-type",
         llvm::cl::init(PTAStat::ClockType::CPU),
