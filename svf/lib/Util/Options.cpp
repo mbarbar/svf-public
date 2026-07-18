@@ -294,12 +294,6 @@ const Option<u32_t> Options::IndirectCallLimit(
     50000
 );
 
-Option<bool> Options::UsePreCompFieldSensitive(
-    "pre-field-sensitive",
-    "Use pre-computed field-sensitivity for later analysis",
-    true
-);
-
 const Option<bool> Options::EnableAliasCheck(
     "alias-check",
     "Enable alias check functions",

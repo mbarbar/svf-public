@@ -122,7 +122,6 @@ public:
     static const Option<bool> CallGraphDotGraph;
     static const Option<bool> PAGPrint;
     static const Option<u32_t> IndirectCallLimit;
-    static Option<bool> UsePreCompFieldSensitive;
     static const Option<bool> EnableAliasCheck;
     static const Option<bool> EnableTypeCheck;
     static const Option<bool> EnableThreadCallGraph;

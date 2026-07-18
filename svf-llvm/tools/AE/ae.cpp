@@ -857,7 +857,6 @@ int main(int argc, char** argv)
     // add extra options
     arg_value[arg_num++] = (char*) "-model-consts=true";
     arg_value[arg_num++] = (char*) "-model-arrays=true";
-    arg_value[arg_num++] = (char*) "-pre-field-sensitive=false";
     assert(arg_num == (argc + extraArgc) && "more extra arguments? Change the value of extraArgc");
 
     std::vector<std::string> moduleNameVec;

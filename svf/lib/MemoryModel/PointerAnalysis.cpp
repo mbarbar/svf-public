@@ -204,9 +204,6 @@ void PointerAnalysis::finalize()
 
     if(!pag->isBuiltFromFile() && alias_validation)
         validateTests();
-
-    if (!Options::UsePreCompFieldSensitive())
-        resetObjFieldSensitive();
 }
 
 /*!
