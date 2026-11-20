@@ -45,6 +45,7 @@ MSYS2_PKG_SUFFIX="${MajorLLVMVer}.${MinorLLVMVer}.${MSYS2_LLVM_PATCH}-${MSYS2_LL
 # Keep this consistent with LLVM_DIR in setup.sh and llvm_version in Dockerfile.
 LLVMHome="llvm-${LLVMVer}.obj"
 Z3Home="z3.obj"
+SVFIRHome="svfir"
 
 UbuntuArmLLVM_RTTI="https://github.com/SVF-tools/SVF/releases/download/SVF-3.3/llvm-${LLVMVer}-ubuntu26-rtti-aarch64.tar.gz"
 UbuntuArmLLVM="https://github.com/llvm/llvm-project/releases/download/llvmorg-${LLVMVer}/LLVM-${LLVMVer}-Linux-ARM64.tar.xz"
@@ -66,6 +67,7 @@ ENABLE_ASSERTIONS="${SVF_ENABLE_ASSERTIONS:-ON}"
 PLATFORM=""
 urlLLVM=""
 urlZ3=""
+urlSVFIR="https://github.com/SVF-tools/SVF-IR/archive/refs/heads/main.zip"
 
 usage() {
     cat <<USAGE
@@ -510,6 +512,21 @@ ensure_z3() {
     fi
 }
 
+build_svfir() {
+    echo "Downloading SVFIR."
+    generic_download_file "$urlSVFIR" svfir.zip
+    require_cmd unzip unzip
+    echo "Unpacking SVFIR package."
+    rm -rf "$SVFIRHome"
+    unzip svfir.zip -d "$SVFIRHome"
+    rm svfir.zip
+    echo "Building SVFIR."
+    cmake -S "$SVFIRHome/SVF-IR-main" -B "$SVFIRHome/build" -DCMAKE_INSTALL_PREFIX="$SVFIRHome/install"
+    cmake --build "$SVFIRHome/build"
+    cmake --install "$SVFIRHome/build"
+    export SVFIR_DIR="$SVFHOME/$SVFIRHome/install"
+}
+
 configure_runtime_env() {
     export PATH="$LLVM_DIR/bin:$Z3_DIR/bin:$PATH"
     local llvm_lib_dirs="$LLVM_DIR/lib"
@@ -646,6 +663,7 @@ main() {
 
     ensure_llvm
     ensure_z3
+    build_svfir
     configure_runtime_env
     build_svf
 

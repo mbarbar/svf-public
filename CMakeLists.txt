@@ -297,6 +297,8 @@ install(TARGETS SvfFlags EXPORT SVFTargets)
 # SVF core definitions
 # =================================================================================
 
+find_package(SVFIR CONFIG REQUIRED HINTS "{SVFIR_DIR}")
+
 add_subdirectory(svf)
 add_subdirectory(svf-llvm)
 

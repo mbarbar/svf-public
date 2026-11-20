@@ -3,6 +3,7 @@ add_library(SvfCore)
 
 # Inherit compiler & linker options by publically linking against the interface library
 target_link_libraries(SvfCore PUBLIC SvfFlags)
+target_link_libraries(SvfCore PUBLIC SVFIR::svfir)
 
 # Gather & set all of the core library's source files by globbing all .h and .cpp files (recursively)
 file(GLOB_RECURSE SVF_CORE_HEADERS ${CMAKE_CURRENT_LIST_DIR}/include/*.h)
